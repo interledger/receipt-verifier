@@ -1,11 +1,19 @@
 import reduct from 'reduct'
 import { Redis, BALANCE_KEY, RECEIPT_KEY } from './Redis'
+import { Config } from './Config'
 import { Receipt } from '../lib/Receipt'
 import * as ioredisMock from 'ioredis-mock'
 // import * as ioredis from 'ioredis'
 import * as Long from 'long'
 
 describe('Redis', () => {
+  let config: Config
+
+  beforeAll(async () => {
+    const deps = reduct()
+    config = deps(Config)
+  })
+
   describe('constructor', () => {
     it('construct new Redis service', () => {
       const redis = reduct()(Redis)
@@ -25,11 +33,27 @@ describe('Redis', () => {
   })
 
   describe('getReceiptValue', () => {
+
+    const streamTime = new Date('2000-01-01T00:00:00.000Z')
+    const now        = new Date('2000-01-01T00:01:00.000Z')
+    const streamStartTime = Long.fromNumber(Math.floor(streamTime.valueOf() / 1000), true)
+
+    beforeAll(() => {
+      jest.spyOn(global.Date, 'now')
+      .mockImplementation(() =>
+        now.valueOf()
+      )
+    })
+
+    afterAll(() => {
+      jest.clearAllMocks()
+    })
+
     it('returns the amount of the initial receipt', async () => {
       const receipt = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const value = await redis.getReceiptValue(receipt)
       expect(value).toStrictEqual(receipt.totalReceived)
@@ -39,7 +63,7 @@ describe('Redis', () => {
       const receipt = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt.id}`
       expect(await redisMock.get(key)).toBeNull()
@@ -54,12 +78,12 @@ describe('Redis', () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const receipt2 = new Receipt ({
         id: receipt1.id,
         totalReceived: Long.fromNumber(15, true),
-        streamStartTime: receipt1.streamStartTime
+        streamStartTime
       })
       await redis.getReceiptValue(receipt1)
       const value = await redis.getReceiptValue(receipt2)
@@ -70,12 +94,12 @@ describe('Redis', () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const receipt2 = new Receipt ({
         id: receipt1.id,
         totalReceived: Long.fromNumber(15, true),
-        streamStartTime: receipt1.streamStartTime
+        streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt1.id}`
       expect(await redisMock.get(key)).toBeNull()
@@ -87,19 +111,19 @@ describe('Redis', () => {
       expect(await redisMock.get(key)).toBe(receipt2.totalReceived.toNumber())
     })
 
-    it('returns zero for an obsolete receipt', async () => {
+    it('returns zero for receipt with lower amount', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
-      const receiptOld = new Receipt ({
+      const receiptLess = new Receipt ({
         id: receipt1.id,
         totalReceived: Long.fromNumber(5, true),
-        streamStartTime: receipt1.streamStartTime
+        streamStartTime
       })
       await redis.getReceiptValue(receipt1)
-      const value = await redis.getReceiptValue(receiptOld)
+      const value = await redis.getReceiptValue(receiptLess)
       expect(value).toStrictEqual(Long.UZERO)
     })
 
@@ -107,12 +131,12 @@ describe('Redis', () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const receiptOld = new Receipt ({
         id: receipt1.id,
         totalReceived: Long.fromNumber(5, true),
-        streamStartTime: receipt1.streamStartTime
+        streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt1.id}`
       expect(await redisMock.get(key)).toBeNull()
@@ -128,12 +152,12 @@ describe('Redis', () => {
       const receiptSafe = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(Number.MAX_SAFE_INTEGER, true),
-        streamStartTime: Long.fromNumber(946684800, true)
+        streamStartTime
       })
       const receiptBig = new Receipt ({
         id: receiptSafe.id,
         totalReceived: receiptSafe.totalReceived.add(1),
-        streamStartTime: receiptSafe.streamStartTime
+        streamStartTime
       })
       await redis.getReceiptValue(receiptSafe)
       try {
@@ -142,6 +166,36 @@ describe('Redis', () => {
       } catch (error) {
         expect(error.message).toBe('receipt amount exceeds MAX_SAFE_INTEGER')
       }
+    })
+
+    it('returns zero for expired receipt', async () => {
+      const oldStreamTime = Math.floor(Date.now()/1000) - config.receiptTTLSeconds
+
+      const receipt = new Receipt ({
+        id: 'receipt',
+        totalReceived: Long.fromNumber(10, true),
+        streamStartTime: Long.fromNumber(oldStreamTime, true)
+      })
+      const value = await redis.getReceiptValue(receipt)
+      expect(value).toStrictEqual(Long.UZERO)
+    })
+
+    it('sets stored receipt expiration', async () => {
+      const receipt = new Receipt ({
+        id: 'receipt',
+        totalReceived: Long.fromNumber(10, true),
+        streamStartTime
+      })
+      const key = `${RECEIPT_KEY}:${receipt.id}`
+      expect(await redisMock.get(key)).toBeNull()
+      await redis.getReceiptValue(receipt)
+      const ret = await redisMock.get(key)
+      expect(await redisMock.get(key)).toBeTruthy()
+      jest.spyOn(global.Date, 'now')
+      .mockImplementationOnce(() =>
+        now.valueOf() + (config.receiptTTLSeconds * 1000)
+      )
+      expect(await redisMock.get(key)).toBeNull()
     })
   })
 

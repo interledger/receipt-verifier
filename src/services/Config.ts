@@ -5,7 +5,7 @@ export class Config {
   readonly port: number
   readonly spspEndpoint: string
   readonly receiptSeed: Buffer
-  // receipt staleness
+  readonly receiptTTLSeconds: number
   // redis details
 
   constructor (env: Injector | { [k: string]: string | undefined }) {
@@ -15,6 +15,7 @@ export class Config {
     }
     this.port = Number(env.PORT) || 3000
     this.receiptSeed = env.RECEIPT_SEED ? Buffer.from(env.RECEIPT_SEED, 'base64') : randomBytes(32)
+    this.receiptTTLSeconds = Number(env.RECEIPT_TTL) || 300
     if (env.SPSP_ENDPOINT) {
       this.spspEndpoint = env.SPSP_ENDPOINT
     } else if (process.env.NODE_ENV === 'test') {

@@ -6,12 +6,12 @@ import { Config } from './Config'
 import { Receipt } from '../lib/Receipt'
 
 interface CustomRedis extends ioredis.Redis {
-  getReceiptValue(key: string, amount: number): Promise<number>
+  getReceiptValue(key: string, amount: number, ttlSeconds: number): Promise<number>
   spendBalance(key: string, amount: number): Promise<boolean>
 }
 
 interface CustomRedisMock extends ioredisMock {
-  getReceiptValue(key: string, amount: number): Promise<number>
+  getReceiptValue(key: string, amount: number, ttlSeconds: number): Promise<number>
   spendBalance(key: string, amount: number): Promise<number>
 }
 
@@ -43,15 +43,16 @@ export class Redis {
       lua: `
 local amount = tonumber(ARGV[1])
 local prevAmount = tonumber(redis.call('get', KEYS[1]))
+local ttl = tonumber(ARGV[1])
 if prevAmount then
   if prevAmount < amount then
-    redis.call('set', KEYS[1], amount)
+    redis.call('set', KEYS[1], amount, 'EX', ttl)
     return amount - prevAmount
   else
     return 0
   end
 else
-  redis.call('set', KEYS[1], amount)
+  redis.call('set', KEYS[1], amount, 'EX', ttl)
   return amount
 end
 `
@@ -78,7 +79,12 @@ end
     if (receipt.totalReceived.compare(Number.MAX_SAFE_INTEGER) === 1) {
       throw new Error('receipt amount exceeds MAX_SAFE_INTEGER')
     }
-    return Long.fromNumber(await this.redis.getReceiptValue(key, receipt.totalReceived.toNumber()), true)
+    const receiptTTL = receipt.getRemainingTTL(this.config.receiptTTLSeconds)
+    if (receiptTTL === 0) {
+      return Long.UZERO
+    }
+    const value = await this.redis.getReceiptValue(key, receipt.totalReceived.toNumber(), receiptTTL)
+    return Long.fromNumber(value, true)
   }
 
   async creditBalance (id: string, amount: Long): Promise<number> {
