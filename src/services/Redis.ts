@@ -1,7 +1,9 @@
 import { Injector } from 'reduct'
 import * as ioredis from 'ioredis'
 import * as ioredisMock from 'ioredis-mock'
+import * as Long from 'long'
 import { Config } from './Config'
+import { Receipt } from '../lib/Receipt'
 
 interface CustomRedis extends ioredis.Redis {
   getReceiptValue(key: string, amount: number): Promise<number>
@@ -15,8 +17,6 @@ interface CustomRedisMock extends ioredisMock {
 
 export const BALANCE_KEY = 'ilpBalances'
 export const RECEIPT_KEY = 'ilpReceipts'
-export const BALANCE_RECEIVED = 'received'
-export const BALANCE_USED = 'used'
 
 export class Redis {
   private config: Config
@@ -57,33 +57,36 @@ end
 `
     })
 
-//TODO: use single balance value
     this.redis.defineCommand('spendBalance', {
       numberOfKeys: 1,
       lua: `
 local amount = tonumber(ARGV[1])
-local received = tonumber(redis.call('hget', KEYS[1], '${BALANCE_RECEIVED}'))
-local prevUsed = tonumber(redis.call('hget', KEYS[1], '${BALANCE_USED}'))
-local used = prevUsed and (prevUsed + amount) or amount
-if not received or received < used then
+local balance = tonumber(redis.call('get', KEYS[1]))
+if not balance or balance < amount then
   return false
 else
-  redis.call('hincrby', KEYS[1], '${BALANCE_USED}', amount)
+  redis.call('decrby', KEYS[1], amount)
   return true
 end
 `
     })
   }
 
-//include expiry (just pass in receipt object?)
-  async getReceiptValue (receiptId: string, streamId: number, amount: number): Promise<number> {
-    const key = `${RECEIPT_KEY}:${receiptId}:${streamId}`
-    return this.redis.getReceiptValue(key, amount)
+  // TODO: check/set receipt expiry
+  async getReceiptValue (receipt: Receipt): Promise<Long> {
+    const key = `${RECEIPT_KEY}:${receipt.id}`
+    if (receipt.totalReceived.compare(Number.MAX_SAFE_INTEGER) === 1) {
+      throw new Error('receipt amount exceeds MAX_SAFE_INTEGER')
+    }
+    return Long.fromNumber(await this.redis.getReceiptValue(key, receipt.totalReceived.toNumber()), true)
   }
 
-  async creditBalance (id: string, amount: number): Promise<number> {
+  async creditBalance (id: string, amount: Long): Promise<number> {
     const key = `${BALANCE_KEY}:${id}`
-    return await this.redis.hincrby(key, BALANCE_RECEIVED, amount)
+    if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
+      throw new Error('credit amount exceeds MAX_SAFE_INTEGER')
+    }
+    return await this.redis.incrby(key, amount.toNumber())
   }
 
   async spendBalance (id: string, amount: number): Promise<boolean> {

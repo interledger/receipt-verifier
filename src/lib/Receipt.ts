@@ -1,35 +1,43 @@
-import { Reader, Writer } from 'oer-utils'
+import { Reader } from 'oer-utils'
 import * as Long from 'long'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
 export interface ReceiptOpts {
-  seed: Buffer,
-  receipt: Buffer
+  id: string
+  totalReceived: Long
+  streamStartTime: Long
 }
 
 export class Receipt {
-  nonce: Buffer
-  streamId: number
+  id: string
   totalReceived: Long
-  streamStartTime: number
-  hmac: Buffer
+  streamStartTime: Long
 
   constructor (opts: ReceiptOpts) {
-    const reader = Reader.from(opts.receipt)
-    this.nonce = reader.readVarOctetString()
-    this.streamId = reader.readVarUIntNumber()
-    this.totalReceived = reader.readVarUIntLong()
-    this.streamStartTime = reader.readVarUIntNumber()
-    this.hmac = reader.readVarOctetString()
+    this.id = opts.id
+    this.totalReceived = opts.totalReceived
+    this.streamStartTime = opts.streamStartTime
+  }
 
-    const writer = new Writer()
-    writer.writeVarOctetString(this.nonce)
-    writer.writeVarUInt(this.streamId)
-    writer.writeVarUInt(this.totalReceived)
-    writer.writeVarUInt(this.streamStartTime)
-    const secret = generateReceiptSecret(opts.seed, this.nonce)
-    if (this.hmac !== hmac(secret, writer.getBuffer())) {
+  static fromBuffer (receipt: Buffer, seed: Buffer): Receipt {
+    const reader = Reader.from(receipt)
+    const receiptHmac = reader.readOctetString(32)
+    const nonce = reader.readOctetString(16)
+
+    const secret = generateReceiptSecret(seed, nonce)
+
+    if (!receiptHmac.equals(hmac(secret, reader.buffer.slice(32)))) {
       throw new Error('invalid receipt')
     }
+
+    const streamId = reader.readUInt8Number()
+    const totalReceived = reader.readUInt64Long()
+    const streamStartTime = reader.readUInt64Long()
+
+    return new Receipt({
+      id: `${nonce}:${streamId}`,
+      totalReceived,
+      streamStartTime
+    })
   }
 }
