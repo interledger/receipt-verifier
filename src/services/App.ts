@@ -36,9 +36,9 @@ export class App {
     this.server = koa.listen(this.config.port)
   }
 
-  stop (): void {
+  stop (callback: any): void {
     if (this.server) {
-      this.server.close()
+      this.server.close(callback)
     }
   }
 }

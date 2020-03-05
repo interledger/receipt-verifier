@@ -1,5 +1,5 @@
 import reduct from 'reduct'
-import axios from 'axios'
+import fetch from 'node-fetch'
 import { App } from './App'
 import { Config } from './Config'
 
@@ -14,18 +14,19 @@ describe('SPSP', () => {
     await app.start()
   })
 
-  afterAll(() => {
-    app.stop()
+  afterAll((done) => {
+    app.stop(done)
   })
 
   describe('GET /.well-known/pay', () => {
     it('requires spsp4 header', async () => {
-      try {
-        await axios.get(`http://localhost:${config.port}/.well-known/pay`)
-        fail()
-      } catch (error) {
-        expect(error.response.status).toBe(404)
-      }
+      const resp = await fetch(`http://localhost:${config.port}/.well-known/pay`, {
+        headers: {
+          Accept: 'application/json'
+        }
+      })
+      expect(resp.ok).toBeFalsy()
+      expect(resp.status).toBe(404)
     })
 
     // it('returns ???', async () => {

@@ -11,7 +11,6 @@
   "author": "Brandon Wilson <brandon@coil.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "@types/redis-mock": "^0.17.0",
     "ioredis": "^4.14.1",
     "ioredis-mock": "^4.19.0",
     "koa": "^2.11.0",
@@ -20,6 +19,7 @@
     "koa-router": "^8.0.7",
     "long": "^4.0.0",
     "oer-utils": "^5.1.0-alpha.0",
+    "raw-body": "^2.4.1",
     "reduct": "^3.3.1"
   },
   "devDependencies": {
@@ -30,8 +30,10 @@
     "@types/koa-proxies": "^0.9.0",
     "@types/koa-router": "^7.4.0",
     "@types/node": "^13.7.1",
-    "axios": "^0.19.2",
+    "@types/node-fetch": "^2.5.5",
+    "@types/redis-mock": "^0.17.0",
     "jest": "^25.1.0",
+    "node-fetch": "^2.6.0",
     "ts-jest": "^25.2.0",
     "typescript": "^3.7.5"
   }

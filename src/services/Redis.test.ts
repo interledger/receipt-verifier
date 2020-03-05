@@ -200,6 +200,24 @@ describe('Redis', () => {
   })
 
   describe('creditBalance', () => {
+    it('returns new balance', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const key = `${BALANCE_KEY}:${id}`
+      const balance = await redis.creditBalance(id, amount)
+      expect(balance).toStrictEqual(amount)
+    })
+
+    it('returns updated balance', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const key = `${BALANCE_KEY}:${id}`
+      let balance = await redis.creditBalance(id, amount)
+      expect(balance).toStrictEqual(amount)
+      balance = await redis.creditBalance(id, amount)
+      expect(balance).toStrictEqual(amount.add(amount))
+    })
+
     it('creates new balance', async () => {
       const id = 'id'
       const amount = Long.fromNumber(10, true)
@@ -222,7 +240,6 @@ describe('Redis', () => {
       const id = 'id'
       const amountSafe = Long.fromNumber(Number.MAX_SAFE_INTEGER, true)
       const amountBig = amountSafe.add(1)
-      const key = `${BALANCE_KEY}:${id}`
       await redis.creditBalance(id, amountSafe)
       try {
         await redis.creditBalance(id, amountBig)
@@ -247,42 +264,62 @@ describe('Redis', () => {
         expect(error.message).toBe('ERR increment or decrement would overflow')
       }
     })
-
   })
 
   describe('spendBalance', () => {
-    it('returns true when balance is sufficient', async () => {
+    it('returns new balance when balance is sufficient', async () => {
       const id = 'id'
       await redis.creditBalance(id, Long.fromNumber(10, true))
-      expect(await redis.spendBalance(id, 5)).toBe(true)
+      const balance = await redis.spendBalance(id, Long.fromNumber(1, true))
+      expect(balance).toStrictEqual(Long.fromNumber(9, true))
     })
 
-    it('returns false when balance doesn\'t exist', async () => {
+    // ioredit-mock won't throw
+    it.skip('throws when balance doesn\'t exist', async () => {
       const id = 'id'
-      expect(await redis.spendBalance(id, 10)).toBe(false)
+      try {
+        await redis.spendBalance(id, Long.fromNumber(10, true))
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('balance does not exist')
+      }
     })
 
-    it('returns false when balance is insufficient', async () => {
+    // ioredit-mock won't throw
+    it.skip('throws when balance is insufficient', async () => {
       const id = 'id'
       await redis.creditBalance(id, Long.fromNumber(5, true))
-      expect(await redis.spendBalance(id, 10)).toBe(false)
+      try {
+        await redis.spendBalance(id, Long.fromNumber(10, true))
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('insufficient balance')
+      }
     })
 
     it('won\'t create balance', async () => {
       const id = 'id'
       const key = `${BALANCE_KEY}:${id}`
       expect(await redisMock.get(key)).toBeNull()
-      expect(await redis.spendBalance(id, 1)).toBe(false)
-      expect(await redisMock.get(key)).toBeNull()
+      try {
+        await redis.spendBalance(id, Long.fromNumber(10, true))
+        fail()
+      } catch (error) {
+        expect(await redisMock.get(key)).toBeNull()
+      }
     })
 
-    it('won\'t create decrease balance when balance is insuffient', async () => {
+    it('won\'t decrease balance when balance is insuffient', async () => {
       const id = 'id'
       const key = `${BALANCE_KEY}:${id}`
       await redis.creditBalance(id, Long.fromNumber(5, true))
       expect(await redisMock.get(key)).toBe('5')
-      expect(await redis.spendBalance(id, 10)).toBe(false)
-      expect(await redisMock.get(key)).toBe('5')
+      try {
+        await redis.spendBalance(id, Long.fromNumber(10, true))
+        fail()
+      } catch (error) {
+        expect(await redisMock.get(key)).toBe('5')
+      }
     })
 
     it('decreases balance', async () => {
@@ -290,10 +327,24 @@ describe('Redis', () => {
       const key = `${BALANCE_KEY}:${id}`
       await redis.creditBalance(id, Long.fromNumber(10, true))
       expect(await redisMock.get(key)).toBe('10')
-      expect(await redis.spendBalance(id, 1)).toBe(true)
+      let balance = await redis.spendBalance(id, Long.fromNumber(1, true))
+      expect(balance).toStrictEqual(Long.fromNumber(9, true))
       expect(await redisMock.get(key)).toBe('9')
-      expect(await redis.spendBalance(id, 2)).toBe(true)
+      balance = await redis.spendBalance(id, Long.fromNumber(2, true))
+      expect(balance).toStrictEqual(Long.fromNumber(7, true))
       expect(await redisMock.get(key)).toBe('7')
+    })
+
+    it('throws for spend amount greater than MAX_SAFE_INTEGER', async () => {
+      const id = 'id'
+      const amountBig = Long.fromNumber(Number.MAX_SAFE_INTEGER, true).add(1)
+      await redis.creditBalance(id, Long.fromNumber(10, true))
+      try {
+        await redis.spendBalance(id, amountBig)
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('spend amount exceeds MAX_SAFE_INTEGER')
+      }
     })
   })
 })

@@ -7,7 +7,7 @@ import { Receipt } from '../lib/Receipt'
 
 interface CustomRedis extends ioredis.Redis {
   getReceiptValue(key: string, amount: number, ttlSeconds: number): Promise<number>
-  spendBalance(key: string, amount: number): Promise<boolean>
+  spendBalance(key: string, amount: number): Promise<number>
 }
 
 interface CustomRedisMock extends ioredisMock {
@@ -46,7 +46,7 @@ local prevAmount = tonumber(redis.call('get', KEYS[1]))
 local ttl = tonumber(ARGV[1])
 if prevAmount then
   if prevAmount < amount then
-    redis.call('set', KEYS[1], amount, 'EX', ttl)
+    redis.call('set', KEYS[1], amount, 'KEEPTTL')
     return amount - prevAmount
   else
     return 0
@@ -63,17 +63,16 @@ end
       lua: `
 local amount = tonumber(ARGV[1])
 local balance = tonumber(redis.call('get', KEYS[1]))
-if not balance or balance < amount then
-  return false
-else
-  redis.call('decrby', KEYS[1], amount)
-  return true
+if not balance then
+  return redis.error_reply('balance does not exist')
+elseif balance < amount then
+  return redis.error_reply('insufficient balance')
 end
+return redis.call('decrby', KEYS[1], amount)
 `
     })
   }
 
-  // TODO: check/set receipt expiry
   async getReceiptValue (receipt: Receipt): Promise<Long> {
     const key = `${RECEIPT_KEY}:${receipt.id}`
     if (receipt.totalReceived.compare(Number.MAX_SAFE_INTEGER) === 1) {
@@ -87,22 +86,24 @@ end
     return Long.fromNumber(value, true)
   }
 
-  async creditBalance (id: string, amount: Long): Promise<number> {
+//verify amount is unsigned
+  async creditBalance (id: string, amount: Long): Promise<Long> {
     const key = `${BALANCE_KEY}:${id}`
     if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
       throw new Error('credit amount exceeds MAX_SAFE_INTEGER')
     }
-    return await this.redis.incrby(key, amount.toNumber())
+    const balance = await this.redis.incrby(key, amount.toNumber())
+    return Long.fromNumber(balance, true)
   }
 
-  async spendBalance (id: string, amount: number): Promise<boolean> {
+//verify amount is unsigned
+  async spendBalance (id: string, amount: Long): Promise<Long> {
     const key = `${BALANCE_KEY}:${id}`
-
-    // Lua boolean true -> Redis integer reply with value of 1.
-    if (await this.redis.spendBalance(key, amount)) {
-      return true
-    } else {
-      return false
+    if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
+      throw new Error('spend amount exceeds MAX_SAFE_INTEGER')
     }
+
+    const balance = await this.redis.spendBalance(key, amount.toNumber())
+    return Long.fromNumber(balance, true)
   }
 }

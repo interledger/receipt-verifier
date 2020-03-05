@@ -2,6 +2,9 @@ import { Reader } from 'oer-utils'
 import * as Long from 'long'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
+const RECEIPT_LENGTH = 65
+export { RECEIPT_LENGTH }
+
 export interface ReceiptOpts {
   id: string
   totalReceived: Long
