@@ -67,12 +67,14 @@ describe('Balances', () => {
       const receipt1 = makeReceipt(amount1, config.receiptSeed)
       const amount2 = Long.fromNumber(15, true)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
+
       const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
         body: receipt1,
         headers: { 'Content-Type': 'application/octet-stream' }
       })
       expect(resp1.status).toBe(200)
+
       const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
         body: receipt2,
@@ -85,9 +87,73 @@ describe('Balances', () => {
       expect(balance).toStrictEqual(amount2)
     })
 
+    it('returns 400 for invalid receipt', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const badSeed = Buffer.alloc(32)
+      const receipt = makeReceipt(amount, badSeed)
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      })
+      expect(resp.status).toBe(400)
+      const respBuf = await resp.buffer()
+      expect(respBuf.toString()).toBe('invalid receipt')
+    })
+
+    it('returns 400 for expired receipt', async () => {
+      const receiptTime = new Date('2000-01-01T00:00:00.000Z')
+      jest.spyOn(global.Date, 'now')
+      .mockImplementationOnce(() =>
+        receiptTime.valueOf()
+      )
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      const now = receiptTime.valueOf() + (config.receiptTTLSeconds * 1000)
+      jest.spyOn(global.Date, 'now')
+      .mockImplementationOnce(() =>
+        now
+      )
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      })
+      expect(resp.status).toBe(400)
+      const respBuf = await resp.buffer()
+      expect(respBuf.toString()).toBe('expired receipt')
+
+      jest.clearAllMocks()
+    })
+
+    it('returns 400 for receipt with lower amount', async () => {
+      const id = 'id'
+      const amount1 = Long.fromNumber(15, true)
+      const oldStreamTime = Math.floor(Date.now()/1000) - config.receiptTTLSeconds
+      const receipt1 = makeReceipt(amount1, config.receiptSeed)
+      const amount2 = Long.fromNumber(10, true)
+      const receipt2 = makeReceipt(amount2, config.receiptSeed)
+
+      const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt1,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      })
+      expect(resp1.status).toBe(200)
+
+      const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt2,
+        headers: { 'Content-Type': 'application/octet-stream' }
+      })
+      expect(resp2.status).toBe(400)
+      const respBuf = await resp2.buffer()
+      expect(respBuf.toString()).toBe('expired receipt')
+    })
+
     it('returns 500? for invalid receipt', async () => {
-      // expired
-      // lower amount
       // amount exceeds max int
     })
   })

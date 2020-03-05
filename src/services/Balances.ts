@@ -21,14 +21,21 @@ export class Balances {
         limit: RECEIPT_LENGTH
       })
 
-      const receipt = Receipt.fromBuffer(receiptBuf, this.config.receiptSeed)
-
-      const amount = await this.redis.getReceiptValue(receipt)
-      if (amount) {
-        const balance = await this.redis.creditBalance(ctx.params.id, amount)
-        ctx.response.body = Buffer.from(balance.toBytes())
+      let receipt: Receipt
+      try {
+        receipt = Receipt.fromBuffer(receiptBuf, this.config.receiptSeed)
+      } catch (error) {
+        ctx.throw(400, error.message)
       }
 
+      const amount = await this.redis.getReceiptValue(receipt)
+      if (amount.isZero()) {
+        // too old or value is less than previously submitted receipt
+        ctx.throw(400, 'expired receipt')
+      }
+
+      const balance = await this.redis.creditBalance(ctx.params.id, amount)
+      ctx.response.body = Buffer.from(balance.toBytes())
       return ctx.status = 200
     })
 
