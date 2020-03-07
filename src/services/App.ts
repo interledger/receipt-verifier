@@ -1,7 +1,6 @@
 import { Injector } from 'reduct'
 import * as Koa from 'koa'
 import * as Router from 'koa-router'
-import * as bodyParser from 'koa-bodyparser'
 import { Server } from 'http'
 import { Config } from './Config'
 import { Balances } from './Balances'
@@ -27,7 +26,6 @@ export class App {
     this.redis.start()
 
     const koa = new Koa()
-    koa.use(bodyParser)
     const router = new Router()
 
     this.balances.start(router)

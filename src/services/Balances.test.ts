@@ -1,7 +1,7 @@
 import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
-import { Reader, Writer } from 'oer-utils'
+import { Writer } from 'oer-utils'
 import * as raw from 'raw-body'
 import { App } from './App'
 import { Config } from './Config'
@@ -24,7 +24,7 @@ describe('Balances', () => {
 
   describe('POST /balances/{id}:creditReceipt', () => {
 
-    function makeReceipt(amount: Long, seed: Buffer): Buffer {
+    function makeReceipt(amount: Long, seed: Buffer): string {
       const nonce = Buffer.alloc(16)
       const streamId = 1
       const totalReceived = amount
@@ -41,7 +41,7 @@ describe('Balances', () => {
       const receiptBuf = new Writer(65)
       receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
       receiptBuf.writeOctetString(receiptData, 33)
-      return receiptBuf.getBuffer()
+      return receiptBuf.getBuffer().toString('base64')
     }
 
     it('returns balance for valid receipt', async () => {
@@ -50,15 +50,11 @@ describe('Balances', () => {
       const receipt = makeReceipt(amount, config.receiptSeed)
       const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt
       })
       expect(resp.status).toBe(200)
-      const respBuf = await resp.buffer()
-      const reader = Reader.from(respBuf)
-      const balance = reader.readUIntLong(respBuf.length)
-      // const balance = Long.fromBytesBE(Array.prototype.slice.call(respBuf, 0), true)
-      expect(balance).toStrictEqual(amount)
+      const balance = await resp.text()
+      expect(balance).toStrictEqual(amount.toString())
     })
 
     it('returns updated balance for subsequent receipt', async () => {
@@ -70,21 +66,17 @@ describe('Balances', () => {
 
       const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt1,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt1
       })
       expect(resp1.status).toBe(200)
 
       const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt2,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt2
       })
       expect(resp2.status).toBe(200)
-      const respBuf = await resp2.buffer()
-      const reader = Reader.from(respBuf)
-      const balance = reader.readUIntLong(respBuf.length)
-      expect(balance).toStrictEqual(amount2)
+      const balance = await resp2.text()
+      expect(balance).toStrictEqual(amount2.toString())
     })
 
     it('returns 400 for invalid receipt', async () => {
@@ -94,12 +86,11 @@ describe('Balances', () => {
       const receipt = makeReceipt(amount, badSeed)
       const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt
       })
       expect(resp.status).toBe(400)
-      const respBuf = await resp.buffer()
-      expect(respBuf.toString()).toBe('invalid receipt')
+      const error = await resp.text()
+      expect(error).toBe('invalid receipt')
     })
 
     it('returns 400 for expired receipt', async () => {
@@ -118,12 +109,11 @@ describe('Balances', () => {
       )
       const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt
       })
       expect(resp.status).toBe(400)
-      const respBuf = await resp.buffer()
-      expect(respBuf.toString()).toBe('expired receipt')
+      const error = await resp.text()
+      expect(error).toBe('expired receipt')
 
       jest.clearAllMocks()
     })
@@ -138,19 +128,17 @@ describe('Balances', () => {
 
       const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt1,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt1
       })
       expect(resp1.status).toBe(200)
 
       const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
-        body: receipt2,
-        headers: { 'Content-Type': 'application/octet-stream' }
+        body: receipt2
       })
       expect(resp2.status).toBe(400)
-      const respBuf = await resp2.buffer()
-      expect(respBuf.toString()).toBe('expired receipt')
+      const error = await resp2.text()
+      expect(error).toBe('expired receipt')
     })
 
     it('returns 500? for invalid receipt', async () => {

@@ -5,6 +5,9 @@ import { generateReceiptSecret, hmac } from '../util/crypto'
 const RECEIPT_LENGTH = 65
 export { RECEIPT_LENGTH }
 
+const RECEIPT_LENGTH_BASE64 = 88
+export { RECEIPT_LENGTH_BASE64 }
+
 export interface ReceiptOpts {
   id: string
   totalReceived: Long

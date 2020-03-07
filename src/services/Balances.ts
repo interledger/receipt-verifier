@@ -3,7 +3,7 @@ import { Context } from 'koa'
 import * as Router from 'koa-router'
 import { Redis } from './Redis'
 import { Config } from './Config'
-import { Receipt, RECEIPT_LENGTH } from '../lib/Receipt'
+import { Receipt, RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
 import * as raw from 'raw-body'
 
 export class Balances {
@@ -17,13 +17,13 @@ export class Balances {
 
   async start (router: Router) {
     router.post('/balances/:id\\:creditReceipt', async (ctx: Context) => {
-      const receiptBuf = await raw(ctx.req, {
-        limit: RECEIPT_LENGTH
+      const body = await raw(ctx.req, {
+        limit: RECEIPT_LENGTH_BASE64
       })
 
       let receipt: Receipt
       try {
-        receipt = Receipt.fromBuffer(receiptBuf, this.config.receiptSeed)
+        receipt = Receipt.fromBuffer(Buffer.from(body.toString(), 'base64'), this.config.receiptSeed)
       } catch (error) {
         ctx.throw(400, error.message)
       }
@@ -35,7 +35,7 @@ export class Balances {
       }
 
       const balance = await this.redis.creditBalance(ctx.params.id, amount)
-      ctx.response.body = Buffer.from(balance.toBytes())
+      ctx.response.body = balance.toString()
       return ctx.status = 200
     })
 
