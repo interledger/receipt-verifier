@@ -236,6 +236,17 @@ describe('Redis', () => {
       expect(await redisMock.get(key)).toBe('15')
     })
 
+    it('throws for negative credit amount', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(-1)
+      try {
+        await redis.creditBalance(id, amount)
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('credit amount must not be negative')
+      }
+    })
+
     it('throws for credit amount greater than MAX_SAFE_INTEGER', async () => {
       const id = 'id'
       const amountSafe = Long.fromNumber(Number.MAX_SAFE_INTEGER, true)
@@ -251,14 +262,13 @@ describe('Redis', () => {
 
     // ioredit-mock won't throw
     it.skip('throws for balance greater than max 64 bit signed integer', async () => {
-      console.log(Long.MAX_VALUE.subtract(1).toString())
       const id = 'id'
-      const amount = Long.fromNumber(1, true)
+      const one = Long.fromNumber(1, true)
       const key = `${BALANCE_KEY}:${id}`
       await redisMock.set(key, Long.MAX_VALUE.subtract(1).toString())  // max int64 - 1
-      await redis.creditBalance(id, amount)                            // max int64
+      await redis.creditBalance(id, one)                               // max int64
       try {
-        await redis.creditBalance(id, amount)                          // max int64 + 1
+        await redis.creditBalance(id, one)                             // max int64 + 1
         fail()
       } catch (error) {
         expect(error.message).toBe('ERR increment or decrement would overflow')
@@ -333,6 +343,18 @@ describe('Redis', () => {
       balance = await redis.spendBalance(id, Long.fromNumber(2, true))
       expect(balance).toStrictEqual(Long.fromNumber(7, true))
       expect(await redisMock.get(key)).toBe('7')
+    })
+
+    it('throws for negative spend amount', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(-1)
+      await redis.creditBalance(id, Long.fromNumber(10, true))
+      try {
+        await redis.spendBalance(id, amount)
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('spend amount must not be negative')
+      }
     })
 
     it('throws for spend amount greater than MAX_SAFE_INTEGER', async () => {

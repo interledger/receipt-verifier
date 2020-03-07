@@ -4,6 +4,7 @@ import * as Router from 'koa-router'
 import { Redis } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
+import * as Long from 'long'
 import * as raw from 'raw-body'
 
 export class Balances {
@@ -28,21 +29,41 @@ export class Balances {
         ctx.throw(400, error.message)
       }
 
-      const amount = await this.redis.getReceiptValue(receipt)
+      let amount: Long
+      try {
+        amount = await this.redis.getReceiptValue(receipt)
+      } catch (error) {
+        ctx.throw(413, error.message)
+      }
+
       if (amount.isZero()) {
         // too old or value is less than previously submitted receipt
         ctx.throw(400, 'expired receipt')
       }
 
-      const balance = await this.redis.creditBalance(ctx.params.id, amount)
-      ctx.response.body = balance.toString()
-      return ctx.status = 200
+      try {
+        const balance = await this.redis.creditBalance(ctx.params.id, amount)
+        ctx.response.body = balance.toString()
+        return ctx.status = 200
+      } catch (error) {
+        ctx.throw(413, error.message)
+      }
     })
 
     router.post('/balances/:id\\:spend', async (ctx: Context) => {
-      return ctx.status = 200
-      // verify id balance
-      // update balance used
+      const body = await raw(ctx.req, {
+        limit: Long.MAX_UNSIGNED_VALUE.toString().length
+      })
+      const amount = Long.fromString(body.toString())
+
+      try {
+        const balance = await this.redis.spendBalance(ctx.params.id, amount)
+        ctx.response.body = balance.toString()
+        return ctx.status = 200
+      } catch (error) {
+        // 404 for unknown balance
+        ctx.throw(413, error.message)
+      }
     })
   }
 }

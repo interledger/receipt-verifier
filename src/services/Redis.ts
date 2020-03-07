@@ -86,23 +86,26 @@ return redis.call('decrby', KEYS[1], amount)
     return Long.fromNumber(value, true)
   }
 
-//verify amount is unsigned
   async creditBalance (id: string, amount: Long): Promise<Long> {
-    const key = `${BALANCE_KEY}:${id}`
-    if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
+    if (amount.isNegative()) {
+      throw new Error('credit amount must not be negative')
+    } else if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
       throw new Error('credit amount exceeds MAX_SAFE_INTEGER')
     }
+    const key = `${BALANCE_KEY}:${id}`
     const balance = await this.redis.incrby(key, amount.toNumber())
+    //should this error if balance exceeds MAX_SAFE_INTEGER since spendBalance cannot handle balance > MAX_SAFE_INTEGER?
+    //should this catch incrby error and set balance to Long.MAX_VALUE? and throw a rephrased error?
     return Long.fromNumber(balance, true)
   }
 
-//verify amount is unsigned
   async spendBalance (id: string, amount: Long): Promise<Long> {
-    const key = `${BALANCE_KEY}:${id}`
-    if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
+    if (amount.isNegative()) {
+      throw new Error('spend amount must not be negative')
+    } else if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
       throw new Error('spend amount exceeds MAX_SAFE_INTEGER')
     }
-
+    const key = `${BALANCE_KEY}:${id}`
     const balance = await this.redis.spendBalance(key, amount.toNumber())
     return Long.fromNumber(balance, true)
   }

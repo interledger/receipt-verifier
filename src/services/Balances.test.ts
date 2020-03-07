@@ -22,28 +22,26 @@ describe('Balances', () => {
     app.stop(done)
   })
 
+  function makeReceipt(amount: Long, seed: Buffer, streamId = 1): string {
+    const nonce = Buffer.alloc(16)
+    const totalReceived = amount
+    const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
+
+    const data = new Writer(33)
+    data.writeOctetString(nonce, 16)
+    data.writeUInt8(streamId)
+    data.writeUInt64(totalReceived)
+    data.writeUInt64(streamStartTime)
+    const receiptData = data.getBuffer()
+
+    const secret = generateReceiptSecret(seed, nonce)
+    const receiptBuf = new Writer(65)
+    receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
+    receiptBuf.writeOctetString(receiptData, 33)
+    return receiptBuf.getBuffer().toString('base64')
+  }
+
   describe('POST /balances/{id}:creditReceipt', () => {
-
-    function makeReceipt(amount: Long, seed: Buffer): string {
-      const nonce = Buffer.alloc(16)
-      const streamId = 1
-      const totalReceived = amount
-      const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
-
-      const data = new Writer(33)
-      data.writeOctetString(nonce, 16)
-      data.writeUInt8(streamId)
-      data.writeUInt64(totalReceived)
-      data.writeUInt64(streamStartTime)
-      const receiptData = data.getBuffer()
-
-      const secret = generateReceiptSecret(seed, nonce)
-      const receiptBuf = new Writer(65)
-      receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
-      receiptBuf.writeOctetString(receiptData, 33)
-      return receiptBuf.getBuffer().toString('base64')
-    }
-
     it('returns balance for valid receipt', async () => {
       const id = 'id'
       const amount = Long.fromNumber(10, true)
@@ -121,7 +119,6 @@ describe('Balances', () => {
     it('returns 400 for receipt with lower amount', async () => {
       const id = 'id'
       const amount1 = Long.fromNumber(15, true)
-      const oldStreamTime = Math.floor(Date.now()/1000) - config.receiptTTLSeconds
       const receipt1 = makeReceipt(amount1, config.receiptSeed)
       const amount2 = Long.fromNumber(10, true)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
@@ -141,19 +138,77 @@ describe('Balances', () => {
       expect(error).toBe('expired receipt')
     })
 
-    it('returns 500? for invalid receipt', async () => {
-      // amount exceeds max int
+    it('returns 413 for receipt amount greater than MAX_SAFE_INTEGER', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(Number.MAX_SAFE_INTEGER, true).add(1)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt
+      })
+      expect(resp.status).toBe(413)
+      const error = await resp.text()
+      expect(error).toBe('receipt amount exceeds MAX_SAFE_INTEGER')
+    })
+
+    it.skip('returns 413 for balance amount greater than MAX_SAFE_INTEGER', async () => {
+      // submit 1025 MAX_SAFE_INTEGER receipts. or preset redis value from here
+      // the last one should return "ERR increment or decrement would overflow"
+      // ioredi-mock won't throw...
     })
   })
 
   describe('POST /balances/{id}:spend', () => {
-    // it('returns 200', async () => {
-    //   const id = 'id'
-    //   const resp = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
-    //     amount: 10
-    //   })
-    //   expect(resp.status).toBe(200)
-    // })
 
+    it('returns new balance after spend', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt
+      })
+      expect(resp1.status).toBe(200)
+      const spendAmount = Long.fromNumber(2, true)
+      const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
+        method: 'POST',
+        body: spendAmount.toString()
+      })
+      expect(resp2.status).toBe(200)
+      const balance = await resp2.text()
+      expect(balance).toStrictEqual(amount.subtract(spendAmount).toString())
+    })
+
+    // ioredit-mock won't throw
+    it.skip('returns 404 for unknown balance id', async () => {
+      const id = 'unknown'
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
+        method: 'POST',
+        body: '1'
+      })
+      expect(resp.status).toBe(404)
+      const error = await resp.text()
+      expect(error).toBe('balance does not exist')
+    })
+
+    // ioredit-mock won't throw
+    it.skip('returns 413 for insufficient balance', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10, true)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      const resp1 = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt
+      })
+      expect(resp1.status).toBe(200)
+      const spendAmount = Long.fromNumber(20, true)
+      const resp2 = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
+        method: 'POST',
+        body: spendAmount.toString()
+      })
+      expect(resp2.status).toBe(409)
+      const error = await resp2.text()
+      expect(error).toBe('insufficient balance')
+    })
   })
 })
