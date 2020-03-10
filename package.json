@@ -11,10 +11,10 @@
   "author": "Brandon Wilson <brandon@coil.com>",
   "license": "Apache-2.0",
   "dependencies": {
+    "http-proxy": "^1.18.0",
     "ioredis": "^4.14.1",
     "ioredis-mock": "^4.19.0",
     "koa": "^2.11.0",
-    "koa-proxies": "^0.11.0",
     "koa-router": "^8.0.7",
     "long": "^4.0.0",
     "oer-utils": "^5.1.0-alpha.0",
@@ -22,10 +22,10 @@
     "reduct": "^3.3.1"
   },
   "devDependencies": {
+    "@types/http-proxy": "^1.17.3",
     "@types/ioredis": "^4.14.7",
     "@types/jest": "^25.1.2",
     "@types/koa": "^2.11.1",
-    "@types/koa-proxies": "^0.9.0",
     "@types/koa-router": "^7.4.0",
     "@types/node": "^13.7.1",
     "@types/node-fetch": "^2.5.5",

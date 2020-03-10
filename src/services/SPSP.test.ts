@@ -1,21 +1,33 @@
 import reduct from 'reduct'
 import fetch from 'node-fetch'
+import { createServer, Server } from 'http'
 import { App } from './App'
 import { Config } from './Config'
 
 describe('SPSP', () => {
   let app: App
   let config: Config
+  let targetServer: Server
+  const targetResp = 'Hello SPSP!'
 
-  beforeAll(async () => {
+  beforeAll(() => {
+    targetServer = createServer(function (req, res) {
+      res.write(targetResp)
+      res.end()
+    }).listen()
+    const address = targetServer.address()
+    if (address && typeof address === 'object') {
+      process.env.SPSP_ENDPOINT = `http://localhost:${address.port}`
+    }
     const deps = reduct()
     app = deps(App)
     config = deps(Config)
-    await app.start()
+    app.start()
   })
 
   afterAll((done) => {
     app.stop(done)
+    targetServer.close()
   })
 
   describe('GET /.well-known/pay', () => {
@@ -29,14 +41,15 @@ describe('SPSP', () => {
       expect(resp.status).toBe(404)
     })
 
-    // it('returns ???', async () => {
-    //   const resp = await axios.get(`http://localhost:${config.port}/.well-known/pay`, {
-    //     headers: {
-    //       accepts: 'application/spsp4+json'
-    //     }
-    //   })
-    //   console.log(resp)
-    // })
-
+    it('proxies request to specified SPSP endpoint', async () => {
+      const resp = await fetch(`http://localhost:${config.port}/.well-known/pay`, {
+        headers: {
+          Accept: 'application/spsp4+json'
+        }
+      })
+      expect(resp.status).toBe(200)
+      const body = await resp.text()
+      expect(body).toBe(targetResp)
+    })
   })
 })
