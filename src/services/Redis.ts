@@ -97,7 +97,7 @@ end
     })
   }
 
-  async close (): Promise<void> {
+  async stop (): Promise<void> {
     await this.redis.quit()
   }
 

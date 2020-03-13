@@ -3,22 +3,22 @@ import fetch from 'node-fetch'
 import * as Long from 'long'
 import { Writer } from 'oer-utils'
 import * as raw from 'raw-body'
-import { App } from './App'
+import { Balances } from './Balances'
 import { Config } from './Config'
 import { Redis } from './Redis'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
 describe('Balances', () => {
-  let app: App
+  let balances: Balances
   let config: Config
   let redis: Redis
 
   beforeAll(async () => {
     const deps = reduct()
-    app = deps(App)
+    balances = deps(Balances)
     config = deps(Config)
     redis = deps(Redis)
-    await app.start()
+    balances.start()
     await redis.flushall()
   })
 
@@ -26,8 +26,8 @@ describe('Balances', () => {
     await redis.flushall()
   })
 
-  afterAll(async (done) => {
-    await app.stop(done)
+  afterAll(() => {
+    balances.stop()
   })
 
   function makeReceipt(amount: Long, seed: Buffer, streamId = 1): string {

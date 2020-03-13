@@ -1,23 +1,30 @@
 import { Injector } from 'reduct'
-import { Context } from 'koa'
+import { Server } from 'http'
+import * as Koa from 'koa'
 import * as Router from 'koa-router'
+import * as Long from 'long'
+import * as raw from 'raw-body'
 import { Redis } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
-import * as Long from 'long'
-import * as raw from 'raw-body'
 
 export class Balances {
   private config: Config
   private redis: Redis
+  private server: Server
 
   constructor (deps: Injector) {
     this.config = deps(Config)
     this.redis = deps(Redis)
   }
 
-  async start (router: Router) {
-    router.post('/balances/:id\\:creditReceipt', async (ctx: Context) => {
+  start (): void {
+    this.redis.start()
+
+    const koa = new Koa()
+    const router = new Router()
+
+    router.post('/balances/:id\\:creditReceipt', async (ctx: Koa.Context) => {
       const body = await raw(ctx.req, {
         limit: RECEIPT_LENGTH_BASE64
       })
@@ -50,7 +57,7 @@ export class Balances {
       }
     })
 
-    router.post('/balances/:id\\:spend', async (ctx: Context) => {
+    router.post('/balances/:id\\:spend', async (ctx: Koa.Context) => {
       const body = await raw(ctx.req, {
         limit: Long.MAX_UNSIGNED_VALUE.toString().length
       })
@@ -65,5 +72,18 @@ export class Balances {
         ctx.throw(409, error.message)
       }
     })
+
+    koa.use(router.routes())
+    koa.use(router.allowedMethods());
+    this.server = koa.listen(this.config.port, () => {
+      if (process.env.NODE_ENV !== 'test') {
+        console.log('Balances API listening on port: ' + this.config.port)
+      }
+    })
+  }
+
+  async stop (): Promise<void> {
+    await this.redis.stop()
+    this.server.close()
   }
 }

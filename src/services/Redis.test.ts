@@ -33,7 +33,7 @@ describe('Redis', () => {
   })
 
   afterAll(async () => {
-    await redis.close()
+    await redis.stop()
   })
 
   describe('getReceiptValue', () => {
@@ -127,7 +127,7 @@ describe('Redis', () => {
       expect(value.compare(0)).toBe(0)
     })
 
-    it('won\t decrease stored receipt amount', async () => {
+    it('won\'t decrease stored receipt amount', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
         totalReceived: Long.fromNumber(10),
