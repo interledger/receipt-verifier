@@ -6,6 +6,7 @@ import * as raw from 'raw-body'
 import { Balances } from './Balances'
 import { Config } from './Config'
 import { Redis } from './Redis'
+import { RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
 describe('Balances', () => {
@@ -181,6 +182,18 @@ describe('Balances', () => {
       const error = await resp2.text()
       expect(error).toBe('balance cannot exceed max 64 bit signed integer')
     })
+
+    it('returns 413 for body with length greater than RECEIPT_LENGTH_BASE64', async () => {
+      const id = 'id'
+      const receipt = Buffer.alloc(RECEIPT_LENGTH_BASE64+1).toString()
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt
+      })
+      expect(resp.status).toBe(413)
+      const error = await resp.text()
+      expect(error).toBe('request entity too large')
+    })
   })
 
   describe('POST /balances/{id}:spend', () => {
@@ -246,6 +259,18 @@ describe('Balances', () => {
       expect(resp.status).toBe(409)
       const error = await resp.text()
       expect(error).toBe('spend amount exceeds max 64 bit signed integer')
+    })
+
+    it('returns 413 for body with length greater than max 64 bit unsigned integer', async () => {
+      const id = 'id'
+      const amount = Buffer.alloc(Long.MAX_VALUE.toString().length+1).toString()
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
+        method: 'POST',
+        body: amount
+      })
+      expect(resp.status).toBe(413)
+      const error = await resp.text()
+      expect(error).toBe('request entity too large')
     })
   })
 })

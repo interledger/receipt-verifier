@@ -59,8 +59,9 @@ export class Balances {
 
     router.post('/balances/:id\\:spend', async (ctx: Koa.Context) => {
       const body = await raw(ctx.req, {
-        limit: Long.MAX_UNSIGNED_VALUE.toString().length
+        limit: Long.MAX_VALUE.toString().length
       })
+
       const amount = Long.fromString(body.toString(), true)
 
       try {
