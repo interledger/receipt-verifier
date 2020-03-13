@@ -49,7 +49,7 @@ export class Receipt {
 
   getRemainingTTL (receiptTTLSeconds: number): number {
     const expireTime = this.streamStartTime.toNumber() + receiptTTLSeconds
-    const remaining = expireTime - (Date.now() / 1000)
+    const remaining = Math.ceil(expireTime - (Date.now() / 1000))
     return remaining > 0 ? remaining : 0
   }
 }

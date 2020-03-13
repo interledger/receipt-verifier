@@ -44,10 +44,13 @@ export class App {
     }
   }
 
-  stop (callback: any): void {
-    if (this.server) {
-      this.server.close(callback)
-    }
+  async stop (callback: any): Promise<void> {
     this.spsp.close()
+    if (this.server) {
+      await this.redis.close()
+      this.server.close(callback)
+    } else {
+      callback
+    }
   }
 }

@@ -33,7 +33,7 @@ export class Balances {
       try {
         amount = await this.redis.getReceiptValue(receipt)
       } catch (error) {
-        ctx.throw(413, error.message)
+        ctx.throw(409, error.message)
       }
 
       if (amount.isZero()) {
@@ -46,7 +46,7 @@ export class Balances {
         ctx.response.body = balance.toString()
         return ctx.status = 200
       } catch (error) {
-        ctx.throw(413, error.message)
+        ctx.throw(409, error.message)
       }
     })
 
@@ -54,7 +54,7 @@ export class Balances {
       const body = await raw(ctx.req, {
         limit: Long.MAX_UNSIGNED_VALUE.toString().length
       })
-      const amount = Long.fromString(body.toString())
+      const amount = Long.fromString(body.toString(), true)
 
       try {
         const balance = await this.redis.spendBalance(ctx.params.id, amount)
@@ -62,7 +62,7 @@ export class Balances {
         return ctx.status = 200
       } catch (error) {
         // 404 for unknown balance
-        ctx.throw(413, error.message)
+        ctx.throw(409, error.message)
       }
     })
   }

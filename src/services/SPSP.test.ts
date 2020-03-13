@@ -25,9 +25,9 @@ describe('SPSP', () => {
     app.start()
   })
 
-  afterAll((done) => {
-    app.stop(done)
+  afterAll(async (done) => {
     targetServer.close()
+    await app.stop(done)
   })
 
   describe('GET /.well-known/pay', () => {

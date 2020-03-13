@@ -7,7 +7,7 @@ describe('Receipt', () => {
   describe('constructor', () => {
     it('constructs new Receipt', () => {
       const id = '123'
-      const totalReceived = Long.fromNumber(1000, true)
+      const totalReceived = Long.fromNumber(1000)
       const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
 
       const receipt = new Receipt({
@@ -17,7 +17,7 @@ describe('Receipt', () => {
       })
 
       expect(receipt.id).toBe(id)
-      expect(receipt.totalReceived).toEqual(totalReceived)
+      expect(receipt.totalReceived.compare(totalReceived)).toBe(0)
       expect(receipt.streamStartTime).toEqual(streamStartTime)
     })
   })
@@ -26,13 +26,13 @@ describe('Receipt', () => {
     const seed = Buffer.alloc(32)
     const nonce = Buffer.alloc(16)
     const streamId = 1
-    const totalReceived = Long.fromNumber(1000, true)
+    const totalReceived = Long.fromNumber(1000)
     const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
 
     const data = new Writer(33)
     data.writeOctetString(nonce, 16)
     data.writeUInt8(streamId)
-    data.writeUInt64(totalReceived)
+    data.writeUInt64(totalReceived.toUnsigned())
     data.writeUInt64(streamStartTime)
     const receiptData = data.getBuffer()
 
@@ -44,7 +44,7 @@ describe('Receipt', () => {
 
       const receipt = Receipt.fromBuffer(receiptBuf.getBuffer(), seed)
       expect(receipt.id).toBe(`${nonce}:${streamId}`)
-      expect(receipt.totalReceived).toEqual(totalReceived)
+      expect(receipt.totalReceived.compare(totalReceived)).toBe(0)
       expect(receipt.streamStartTime).toEqual(streamStartTime)
     })
 
@@ -75,7 +75,7 @@ describe('Receipt', () => {
       const now        = new Date('2000-01-01T00:01:00.000Z')
       const receipt = new Receipt({
         id: '123',
-        totalReceived: Long.fromNumber(1000, true),
+        totalReceived: Long.fromNumber(1000),
         streamStartTime: Long.fromNumber(Math.floor(streamTime.valueOf() / 1000), true)
       })
 
@@ -87,12 +87,24 @@ describe('Receipt', () => {
       expect(receipt.getRemainingTTL(90)).toBe(30)
     })
 
+    it('returns number of seconds as an integer', () => {
+      const streamTime = Date.now()
+      const receipt = new Receipt({
+        id: '123',
+        totalReceived: Long.fromNumber(1000),
+        streamStartTime: Long.fromNumber(Math.floor(streamTime.valueOf() / 1000), true)
+      })
+
+      const ttl = receipt.getRemainingTTL(90)
+      expect(Number.isInteger(ttl)).toBeTruthy()
+    })
+
     it('returns 0 if receipt is invalid', () => {
       const streamTime = new Date('2000-01-01T00:00:00.000Z')
       const now        = new Date('2000-01-01T00:01:00.000Z')
       const receipt = new Receipt({
         id: '123',
-        totalReceived: Long.fromNumber(1000, true),
+        totalReceived: Long.fromNumber(1000),
         streamStartTime: Long.fromNumber(Math.floor(streamTime.valueOf() / 1000), true)
       })
 

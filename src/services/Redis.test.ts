@@ -29,7 +29,11 @@ describe('Redis', () => {
     // redisMock = new ioredis()
     redis = reduct()(Redis)
     await redis.start(redisMock)
-    // await redisMock.flushall()
+    await redisMock.flushall()
+  })
+
+  afterAll(async () => {
+    await redis.close()
   })
 
   describe('getReceiptValue', () => {
@@ -52,106 +56,100 @@ describe('Redis', () => {
     it('returns the amount of the initial receipt', async () => {
       const receipt = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const value = await redis.getReceiptValue(receipt)
-      expect(value).toStrictEqual(receipt.totalReceived)
+      expect(value.compare(receipt.totalReceived)).toBe(0)
     })
 
     it('sets stored receipt amount', async () => {
       const receipt = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt.id}`
       expect(await redisMock.get(key)).toBeNull()
       await redis.getReceiptValue(receipt)
       const ret = await redisMock.get(key)
-      // https://github.com/stipsan/ioredis-mock/issues/920
-      // expect(await redisMock.get(key)).toBe(receipt.totalReceived.toString())
-      expect(await redisMock.get(key)).toBe(receipt.totalReceived.toNumber())
+      expect(await redisMock.get(key)).toBe(receipt.totalReceived.toString())
     })
 
     it('returns the incremented amount of a subsequent receipt', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const receipt2 = new Receipt ({
         id: receipt1.id,
-        totalReceived: Long.fromNumber(15, true),
+        totalReceived: Long.fromNumber(15),
         streamStartTime
       })
       await redis.getReceiptValue(receipt1)
       const value = await redis.getReceiptValue(receipt2)
-      expect(value).toStrictEqual(Long.fromNumber(5, true))
+      expect(value.compare(5)).toBe(0)
     })
 
     it('increases stored receipt amount', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const receipt2 = new Receipt ({
         id: receipt1.id,
-        totalReceived: Long.fromNumber(15, true),
+        totalReceived: Long.fromNumber(15),
         streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt1.id}`
       expect(await redisMock.get(key)).toBeNull()
       await redis.getReceiptValue(receipt1)
-      // expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
-      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toNumber())
+      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
       await redis.getReceiptValue(receipt2)
-      // expect(await redisMock.get(key)).toBe(receipt2.totalReceived.toString())
-      expect(await redisMock.get(key)).toBe(receipt2.totalReceived.toNumber())
+      expect(await redisMock.get(key)).toBe(receipt2.totalReceived.toString())
     })
 
     it('returns zero for receipt with lower amount', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const receiptLess = new Receipt ({
         id: receipt1.id,
-        totalReceived: Long.fromNumber(5, true),
+        totalReceived: Long.fromNumber(5),
         streamStartTime
       })
       await redis.getReceiptValue(receipt1)
       const value = await redis.getReceiptValue(receiptLess)
-      expect(value).toStrictEqual(Long.UZERO)
+      expect(value.compare(0)).toBe(0)
     })
 
     it('won\t decrease stored receipt amount', async () => {
       const receipt1 = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const receiptOld = new Receipt ({
         id: receipt1.id,
-        totalReceived: Long.fromNumber(5, true),
+        totalReceived: Long.fromNumber(5),
         streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt1.id}`
       expect(await redisMock.get(key)).toBeNull()
       await redis.getReceiptValue(receipt1)
-      // expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
-      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toNumber())
+      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
       await redis.getReceiptValue(receiptOld)
-      // expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
-      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toNumber())
+      expect(await redisMock.get(key)).toBe(receipt1.totalReceived.toString())
     })
 
-    it('throws for receipt amount greater than MAX_SAFE_INTEGER', async () => {
+    it('throws for receipt amount greater than max 64 bit signed int', async () => {
       const receiptSafe = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(Number.MAX_SAFE_INTEGER, true),
+        totalReceived: Long.MAX_VALUE.toUnsigned(),
         streamStartTime
       })
       const receiptBig = new Receipt ({
@@ -164,7 +162,7 @@ describe('Redis', () => {
         await redis.getReceiptValue(receiptBig)
         fail()
       } catch (error) {
-        expect(error.message).toBe('receipt amount exceeds MAX_SAFE_INTEGER')
+        expect(error.message).toBe('receipt amount exceeds max 64 bit signed integer')
       }
     })
 
@@ -173,27 +171,29 @@ describe('Redis', () => {
 
       const receipt = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime: Long.fromNumber(oldStreamTime, true)
       })
       const value = await redis.getReceiptValue(receipt)
-      expect(value).toStrictEqual(Long.UZERO)
+      expect(value.compare(0)).toBe(0)
     })
 
-    it('sets stored receipt expiration', async () => {
+    it.skip('sets stored receipt expiration', async () => {
       const receipt = new Receipt ({
         id: 'receipt',
-        totalReceived: Long.fromNumber(10, true),
+        totalReceived: Long.fromNumber(10),
         streamStartTime
       })
       const key = `${RECEIPT_KEY}:${receipt.id}`
       expect(await redisMock.get(key)).toBeNull()
+      const prevNow = Date.now()
       await redis.getReceiptValue(receipt)
       const ret = await redisMock.get(key)
       expect(await redisMock.get(key)).toBeTruthy()
+      // mocking now won't work for testing real redis
       jest.spyOn(global.Date, 'now')
       .mockImplementationOnce(() =>
-        now.valueOf() + (config.receiptTTLSeconds * 1000)
+        prevNow.valueOf() + (config.receiptTTLSeconds * 1000)
       )
       expect(await redisMock.get(key)).toBeNull()
     })
@@ -202,25 +202,25 @@ describe('Redis', () => {
   describe('creditBalance', () => {
     it('returns new balance', async () => {
       const id = 'id'
-      const amount = Long.fromNumber(10, true)
+      const amount = Long.fromNumber(10)
       const key = `${BALANCE_KEY}:${id}`
       const balance = await redis.creditBalance(id, amount)
-      expect(balance).toStrictEqual(amount)
+      expect(balance.compare(amount)).toBe(0)
     })
 
     it('returns updated balance', async () => {
       const id = 'id'
-      const amount = Long.fromNumber(10, true)
+      const amount = Long.fromNumber(10)
       const key = `${BALANCE_KEY}:${id}`
       let balance = await redis.creditBalance(id, amount)
-      expect(balance).toStrictEqual(amount)
+      expect(balance.compare(amount)).toBe(0)
       balance = await redis.creditBalance(id, amount)
-      expect(balance).toStrictEqual(amount.add(amount))
+      expect(balance.compare(amount.add(amount))).toBe(0)
     })
 
     it('creates new balance', async () => {
       const id = 'id'
-      const amount = Long.fromNumber(10, true)
+      const amount = Long.fromNumber(10)
       const key = `${BALANCE_KEY}:${id}`
       expect(await redisMock.get(key)).toBeNull()
       await redis.creditBalance(id, amount)
@@ -230,9 +230,9 @@ describe('Redis', () => {
     it('increases balance', async () => {
       const id = 'id'
       const key = `${BALANCE_KEY}:${id}`
-      await redis.creditBalance(id, Long.fromNumber(10, true))
+      await redis.creditBalance(id, Long.fromNumber(10))
       expect(await redisMock.get(key)).toBe('10')
-      await redis.creditBalance(id, Long.fromNumber(5, true))
+      await redis.creditBalance(id, Long.fromNumber(5))
       expect(await redisMock.get(key)).toBe('15')
     })
 
@@ -247,23 +247,23 @@ describe('Redis', () => {
       }
     })
 
-    it('throws for credit amount greater than MAX_SAFE_INTEGER', async () => {
+    it('throws for credit amount greater than max 64 bit signed integer', async () => {
       const id = 'id'
-      const amountSafe = Long.fromNumber(Number.MAX_SAFE_INTEGER, true)
+      const amountSafe = Long.MAX_VALUE.toUnsigned()
       const amountBig = amountSafe.add(1)
       await redis.creditBalance(id, amountSafe)
       try {
         await redis.creditBalance(id, amountBig)
         fail()
       } catch (error) {
-        expect(error.message).toBe('credit amount exceeds MAX_SAFE_INTEGER')
+        expect(error.message).toBe('credit amount exceeds max 64 bit signed integer')
       }
     })
 
     // ioredit-mock won't throw
     it.skip('throws for balance greater than max 64 bit signed integer', async () => {
       const id = 'id'
-      const one = Long.fromNumber(1, true)
+      const one = Long.fromNumber(1)
       const key = `${BALANCE_KEY}:${id}`
       await redisMock.set(key, Long.MAX_VALUE.subtract(1).toString())  // max int64 - 1
       await redis.creditBalance(id, one)                               // max int64
@@ -279,16 +279,16 @@ describe('Redis', () => {
   describe('spendBalance', () => {
     it('returns new balance when balance is sufficient', async () => {
       const id = 'id'
-      await redis.creditBalance(id, Long.fromNumber(10, true))
-      const balance = await redis.spendBalance(id, Long.fromNumber(1, true))
-      expect(balance).toStrictEqual(Long.fromNumber(9, true))
+      await redis.creditBalance(id, Long.fromNumber(10))
+      const balance = await redis.spendBalance(id, Long.fromNumber(1))
+      expect(balance.compare(9)).toBe(0)
     })
 
     // ioredit-mock won't throw
     it.skip('throws when balance doesn\'t exist', async () => {
       const id = 'id'
       try {
-        await redis.spendBalance(id, Long.fromNumber(10, true))
+        await redis.spendBalance(id, Long.fromNumber(10))
         fail()
       } catch (error) {
         expect(error.message).toBe('balance does not exist')
@@ -298,9 +298,9 @@ describe('Redis', () => {
     // ioredit-mock won't throw
     it.skip('throws when balance is insufficient', async () => {
       const id = 'id'
-      await redis.creditBalance(id, Long.fromNumber(5, true))
+      await redis.creditBalance(id, Long.fromNumber(5))
       try {
-        await redis.spendBalance(id, Long.fromNumber(10, true))
+        await redis.spendBalance(id, Long.fromNumber(10))
         fail()
       } catch (error) {
         expect(error.message).toBe('insufficient balance')
@@ -312,7 +312,7 @@ describe('Redis', () => {
       const key = `${BALANCE_KEY}:${id}`
       expect(await redisMock.get(key)).toBeNull()
       try {
-        await redis.spendBalance(id, Long.fromNumber(10, true))
+        await redis.spendBalance(id, Long.fromNumber(10))
         fail()
       } catch (error) {
         expect(await redisMock.get(key)).toBeNull()
@@ -322,10 +322,10 @@ describe('Redis', () => {
     it('won\'t decrease balance when balance is insuffient', async () => {
       const id = 'id'
       const key = `${BALANCE_KEY}:${id}`
-      await redis.creditBalance(id, Long.fromNumber(5, true))
+      await redis.creditBalance(id, Long.fromNumber(5))
       expect(await redisMock.get(key)).toBe('5')
       try {
-        await redis.spendBalance(id, Long.fromNumber(10, true))
+        await redis.spendBalance(id, Long.fromNumber(10))
         fail()
       } catch (error) {
         expect(await redisMock.get(key)).toBe('5')
@@ -335,20 +335,20 @@ describe('Redis', () => {
     it('decreases balance', async () => {
       const id = 'id'
       const key = `${BALANCE_KEY}:${id}`
-      await redis.creditBalance(id, Long.fromNumber(10, true))
+      await redis.creditBalance(id, Long.fromNumber(10))
       expect(await redisMock.get(key)).toBe('10')
-      let balance = await redis.spendBalance(id, Long.fromNumber(1, true))
-      expect(balance).toStrictEqual(Long.fromNumber(9, true))
+      let balance = await redis.spendBalance(id, Long.fromNumber(1))
+      expect(balance.compare(9)).toBe(0)
       expect(await redisMock.get(key)).toBe('9')
-      balance = await redis.spendBalance(id, Long.fromNumber(2, true))
-      expect(balance).toStrictEqual(Long.fromNumber(7, true))
+      balance = await redis.spendBalance(id, Long.fromNumber(2))
+      expect(balance.compare(7)).toBe(0)
       expect(await redisMock.get(key)).toBe('7')
     })
 
     it('throws for negative spend amount', async () => {
       const id = 'id'
       const amount = Long.fromNumber(-1)
-      await redis.creditBalance(id, Long.fromNumber(10, true))
+      await redis.creditBalance(id, Long.fromNumber(10))
       try {
         await redis.spendBalance(id, amount)
         fail()
@@ -357,15 +357,15 @@ describe('Redis', () => {
       }
     })
 
-    it('throws for spend amount greater than MAX_SAFE_INTEGER', async () => {
+    it('throws for spend amount greater than max 64 bit signed integer', async () => {
       const id = 'id'
-      const amountBig = Long.fromNumber(Number.MAX_SAFE_INTEGER, true).add(1)
-      await redis.creditBalance(id, Long.fromNumber(10, true))
+      const amountBig = Long.MAX_VALUE.toUnsigned().add(1)
+      await redis.creditBalance(id, Long.fromNumber(10))
       try {
         await redis.spendBalance(id, amountBig)
         fail()
       } catch (error) {
-        expect(error.message).toBe('spend amount exceeds MAX_SAFE_INTEGER')
+        expect(error.message).toBe('spend amount exceeds max 64 bit signed integer')
       }
     })
   })

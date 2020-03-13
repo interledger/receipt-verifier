@@ -2,21 +2,25 @@ import { Injector } from 'reduct'
 import * as ioredis from 'ioredis'
 import * as ioredisMock from 'ioredis-mock'
 import * as Long from 'long'
+import { v4 as uuidv4 } from 'uuid'
 import { Config } from './Config'
 import { Receipt } from '../lib/Receipt'
 
 interface CustomRedis extends ioredis.Redis {
-  getReceiptValue(key: string, amount: number, ttlSeconds: number): Promise<number>
-  spendBalance(key: string, amount: number): Promise<number>
+  getReceiptValue(key: string, tempKey: string, amount: string, ttlSeconds: number): Promise<string>
+  creditBalance(key: string, amount: string): Promise<string>
+  spendBalance(key: string, amount: string): Promise<string>
 }
 
 interface CustomRedisMock extends ioredisMock {
-  getReceiptValue(key: string, amount: number, ttlSeconds: number): Promise<number>
-  spendBalance(key: string, amount: number): Promise<number>
+  getReceiptValue(key: string, tempKey: string, amount: string, ttlSeconds: number): Promise<string>
+  creditBalance(key: string, amount: string): Promise<string>
+  spendBalance(key: string, amount: string): Promise<string>
 }
 
 export const BALANCE_KEY = 'ilpBalances'
 export const RECEIPT_KEY = 'ilpReceipts'
+const TEMP_KEY = 'ilpTemp'
 
 export class Redis {
   private config: Config
@@ -38,18 +42,24 @@ export class Redis {
       this.redis = new ioredis()  // use config
     }
 
+    // These Redis scripts use Redis to handle all numbers to avoid the
+    // limited precision of Javascript and Lua numbers
     this.redis.defineCommand('getReceiptValue', {
-      numberOfKeys: 1,
+      numberOfKeys: 2,
       lua: `
-local amount = tonumber(ARGV[1])
-local prevAmount = tonumber(redis.call('get', KEYS[1]))
-local ttl = tonumber(ARGV[1])
+local amount = ARGV[1]
+local ttl = ARGV[2]
+local prevAmount = redis.call('get', KEYS[1])
 if prevAmount then
-  if prevAmount < amount then
-    redis.call('set', KEYS[1], amount, 'KEEPTTL')
-    return amount - prevAmount
+  local tempKey = KEYS[2]
+  redis.call('set', tempKey, amount, 'EX', 1)
+  redis.call('decrby', tempKey, prevAmount)
+  local diff = redis.call('get', tempKey)
+  if string.sub(diff, 1, 1) == '-' then
+    return '0'
   else
-    return 0
+    redis.call('set', KEYS[1], amount, 'EX', ttl)
+    return diff
   end
 else
   redis.call('set', KEYS[1], amount, 'EX', ttl)
@@ -58,55 +68,80 @@ end
 `
     })
 
+    this.redis.defineCommand('creditBalance', {
+      numberOfKeys: 1,
+      lua: `
+local amount = ARGV[1]
+redis.call('incrby', KEYS[1], amount)
+return redis.call('get', KEYS[1])
+`
+    })
+
     this.redis.defineCommand('spendBalance', {
       numberOfKeys: 1,
       lua: `
-local amount = tonumber(ARGV[1])
-local balance = tonumber(redis.call('get', KEYS[1]))
-if not balance then
+if redis.call('get', KEYS[1]) then
+  local amount = ARGV[1]
+  redis.call('decrby', KEYS[1], amount)
+  local balance = redis.call('get', KEYS[1])
+  if string.sub(balance, 1, 1) == '-' then
+    redis.call('incrby', KEYS[1], amount)
+    return redis.error_reply('insufficient balance')
+  else
+    return balance
+  end
+else
   return redis.error_reply('balance does not exist')
-elseif balance < amount then
-  return redis.error_reply('insufficient balance')
 end
-return redis.call('decrby', KEYS[1], amount)
 `
     })
   }
 
+  async close (): Promise<void> {
+    await this.redis.quit()
+  }
+
+  async flushall (): Promise<void> {
+    await this.redis.flushall()
+  }
+
   async getReceiptValue (receipt: Receipt): Promise<Long> {
-    const key = `${RECEIPT_KEY}:${receipt.id}`
-    if (receipt.totalReceived.compare(Number.MAX_SAFE_INTEGER) === 1) {
-      throw new Error('receipt amount exceeds MAX_SAFE_INTEGER')
+    if (receipt.totalReceived.compare(Long.MAX_VALUE) === 1) {
+      throw new Error('receipt amount exceeds max 64 bit signed integer')
     }
     const receiptTTL = receipt.getRemainingTTL(this.config.receiptTTLSeconds)
     if (receiptTTL === 0) {
       return Long.UZERO
     }
-    const value = await this.redis.getReceiptValue(key, receipt.totalReceived.toNumber(), receiptTTL)
-    return Long.fromNumber(value, true)
+    const key = `${RECEIPT_KEY}:${receipt.id}`
+    const tempKey = `${TEMP_KEY}:${uuidv4()}`
+    const value = await this.redis.getReceiptValue(key, tempKey, receipt.totalReceived.toString(), receiptTTL)
+    return Long.fromString(value)
   }
 
   async creditBalance (id: string, amount: Long): Promise<Long> {
     if (amount.isNegative()) {
       throw new Error('credit amount must not be negative')
-    } else if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
-      throw new Error('credit amount exceeds MAX_SAFE_INTEGER')
+    } else if (amount.compare(Long.MAX_VALUE) === 1) {
+      throw new Error('credit amount exceeds max 64 bit signed integer')
     }
     const key = `${BALANCE_KEY}:${id}`
-    const balance = await this.redis.incrby(key, amount.toNumber())
-    //should this error if balance exceeds MAX_SAFE_INTEGER since spendBalance cannot handle balance > MAX_SAFE_INTEGER?
-    //should this catch incrby error and set balance to Long.MAX_VALUE? and throw a rephrased error?
-    return Long.fromNumber(balance, true)
+    try {
+      const balance = await this.redis.creditBalance(key, amount.toString())
+      return Long.fromString(balance)
+    } catch (err) {
+      throw new Error('balance cannot exceed max 64 bit signed integer')
+    }
   }
 
   async spendBalance (id: string, amount: Long): Promise<Long> {
     if (amount.isNegative()) {
       throw new Error('spend amount must not be negative')
-    } else if (amount.compare(Number.MAX_SAFE_INTEGER) === 1) {
-      throw new Error('spend amount exceeds MAX_SAFE_INTEGER')
+    } else if (amount.compare(Long.MAX_VALUE) === 1) {
+      throw new Error('spend amount exceeds max 64 bit signed integer')
     }
     const key = `${BALANCE_KEY}:${id}`
-    const balance = await this.redis.spendBalance(key, amount.toNumber())
-    return Long.fromNumber(balance, true)
+    const balance = await this.redis.spendBalance(key, amount.toString())
+    return Long.fromString(balance)
   }
 }
