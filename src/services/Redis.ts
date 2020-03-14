@@ -30,16 +30,11 @@ export class Redis {
     this.config = deps(Config)
   }
 
-  async start(redis?: ioredis.Redis | ioredisMock): Promise<void> {
-    if (redis) {
-      // @ts-ignore
-      this.redis = redis
-    } else if (process.env.NODE_ENV === 'test') {
-      // @ts-ignore
-      this.redis = new ioredisMock()  // use config
+  start(): void {
+    if (this.config.redisUri === 'mock') {
+      this.redis = new ioredisMock() as CustomRedisMock
     } else {
-      // @ts-ignore
-      this.redis = new ioredis()  // use config
+      this.redis = new ioredis(this.config.redisUri) as CustomRedis
     }
 
     // These Redis scripts use Redis to handle all numbers to avoid the
@@ -101,8 +96,12 @@ end
     await this.redis.quit()
   }
 
-  async flushall (): Promise<void> {
-    await this.redis.flushall()
+  get _redis() {
+    return this.redis
+  }
+
+  async flushdb (): Promise<void> {
+    await this.redis.flushdb()
   }
 
   async getReceiptValue (receipt: Receipt): Promise<Long> {

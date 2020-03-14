@@ -7,7 +7,7 @@ export class Config {
   readonly spspEndpoint: string
   readonly receiptSeed: Buffer
   readonly receiptTTLSeconds: number
-  // redis details
+  readonly redisUri: string
 
   constructor (env: Injector | { [k: string]: string | undefined }) {
     // Load config from environment by default
@@ -20,10 +20,9 @@ export class Config {
     this.receiptTTLSeconds = Number(env.RECEIPT_TTL) || 300
     if (env.SPSP_ENDPOINT) {
       this.spspEndpoint = env.SPSP_ENDPOINT
-    } else if (process.env.NODE_ENV === 'test') {
-      this.spspEndpoint = 'http://localhost:3000'
     } else {
       throw new Error('receipt-verifier requires SPSP_ENDPOINT to be set')
     }
+    this.redisUri = env.REDIS_URI || 'redis://127.0.0.1:6379/'
   }
 }

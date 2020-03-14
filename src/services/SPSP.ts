@@ -15,9 +15,6 @@ export class SPSP {
     this.proxyServer = httpProxy.createProxyServer({
       target: this.config.spspEndpoint
     })
-  }
-
-  start (): void {
     this.server = createServer(function(req: IncomingMessage, res: ServerResponse) {
       const path = req.url && url.parse(req.url).pathname
       if (path && /\/\.well-known\/pay$/.test(path) &&
@@ -35,7 +32,9 @@ export class SPSP {
         res.end()
       }
     }.bind(this))
+  }
 
+  start (): void {
     this.server.listen(this.config.spspProxyPort, () => {
       if (process.env.NODE_ENV !== 'test') {
         console.log('SPSP proxy listening on port: ' + this.config.spspProxyPort)

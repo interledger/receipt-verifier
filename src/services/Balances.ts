@@ -70,6 +70,9 @@ export class Balances {
         return ctx.status = 200
       } catch (error) {
         // 404 for unknown balance
+        if (error.message === 'balance does not exist') {
+          ctx.throw(404, error.message)
+        }
         ctx.throw(409, error.message)
       }
     })

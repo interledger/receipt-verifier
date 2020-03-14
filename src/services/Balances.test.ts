@@ -14,17 +14,19 @@ describe('Balances', () => {
   let config: Config
   let redis: Redis
 
+  process.env.SPSP_ENDPOINT = 'http://localhost:3000'
+
   beforeAll(async () => {
     const deps = reduct()
     balances = deps(Balances)
     config = deps(Config)
     redis = deps(Redis)
     balances.start()
-    await redis.flushall()
+    await redis.flushdb()
   })
 
   afterEach(async () => {
-    await redis.flushall()
+    await redis.flushdb()
   })
 
   afterAll(() => {
@@ -160,8 +162,7 @@ describe('Balances', () => {
       expect(error).toBe('receipt amount exceeds max 64 bit signed integer')
     })
 
-    // ioredit-mock won't throw
-    it.skip('returns 409 for balance amount greater than max 64 bit signed integer', async () => {
+    it('returns 409 for balance amount greater than max 64 bit signed integer', async () => {
       const id = 'id'
       const amount1 = Long.MAX_VALUE
       const receipt1 = makeReceipt(amount1, config.receiptSeed)
@@ -178,6 +179,7 @@ describe('Balances', () => {
         method: 'POST',
         body: receipt2
       })
+      // ioredit-mock won't throw
       expect(resp2.status).toBe(409)
       const error = await resp2.text()
       expect(error).toBe('balance cannot exceed max 64 bit signed integer')
@@ -217,20 +219,19 @@ describe('Balances', () => {
       expect(balance).toBe(amount.subtract(spendAmount).toString())
     })
 
-    // ioredit-mock won't throw
-    it.skip('returns 404 for unknown balance id', async () => {
+    it('returns 404 for unknown balance id', async () => {
       const id = 'unknown'
       const resp = await fetch(`http://localhost:${config.port}/balances/${id}:spend`, {
         method: 'POST',
         body: '1'
       })
+      // ioredit-mock won't throw
       expect(resp.status).toBe(404)
       const error = await resp.text()
       expect(error).toBe('balance does not exist')
     })
 
-    // ioredit-mock won't throw
-    it.skip('returns 409 for insufficient balance', async () => {
+    it('returns 409 for insufficient balance', async () => {
       const id = 'id'
       const amount = Long.fromNumber(10)
       const receipt = makeReceipt(amount, config.receiptSeed)
@@ -244,6 +245,7 @@ describe('Balances', () => {
         method: 'POST',
         body: spendAmount.toString()
       })
+      // ioredit-mock won't throw
       expect(resp2.status).toBe(409)
       const error = await resp2.text()
       expect(error).toBe('insufficient balance')

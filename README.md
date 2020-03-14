@@ -13,6 +13,14 @@ The **Receipt Verifier**:
 
 For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-monetization/0028-web-monetization.md), website visitors submit receipts to the website in `monetizationprogress` events. The website backend can send receipts to the **Receipt Verifier** to credit the balance for the particular Monetization ID and can subsequently spend against the Monetization ID balance as desired to confirm the payment.
 
+### Run
+
+```
+npm install
+sudo docker run -p 6379:6379 -d redis
+SPSP_ENDPOINT=https://receiver-endpoint.com npm start
+```
+
 ### Environment Variables
 
 #### RECEIPT_SEED
@@ -24,6 +32,11 @@ For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-
 * Type: [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 * Description: The number of seconds since a stream's start time to consider a receipt valid.
 * Default: 300
+
+#### REDIS_URI
+* Type: String
+* Description: The URI at which to connect to Redis. Use `mock` for [in-memory Redis](https://www.npmjs.com/package/ioredis-mock) (NOT RECOMMENDED for production)
+* Default: redis://127.0.0.1:6379/
 
 #### SPSP_ENDPOINT
 * Type: String
