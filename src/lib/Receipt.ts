@@ -27,18 +27,17 @@ export class Receipt {
 
   static fromBuffer (receipt: Buffer, seed: Buffer): Receipt {
     const reader = Reader.from(receipt)
-    const receiptHmac = reader.readOctetString(32)
     const nonce = reader.readOctetString(16)
-
-    const secret = generateReceiptSecret(seed, nonce)
-
-    if (!receiptHmac.equals(hmac(secret, reader.buffer.slice(32)))) {
-      throw new Error('invalid receipt')
-    }
-
     const streamId = reader.readUInt8Number()
     const totalReceived = reader.readUInt64Long()
     const streamStartTime = reader.readUInt64Long()
+
+    const receiptHmac = reader.readOctetString(32)
+    const secret = generateReceiptSecret(seed, nonce)
+
+    if (!receiptHmac.equals(hmac(secret, reader.buffer.slice(0, 33)))) {
+      throw new Error('invalid receipt')
+    }
 
     return new Receipt({
       id: `${nonce}:${streamId}`,

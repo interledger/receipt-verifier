@@ -39,8 +39,8 @@ describe('Receipt', () => {
     it('creates new Receipt', () => {
       const secret = generateReceiptSecret(seed, nonce)
       const receiptBuf = new Writer(65)
-      receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
       receiptBuf.writeOctetString(receiptData, 33)
+      receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
 
       const receipt = Receipt.fromBuffer(receiptBuf.getBuffer(), seed)
       expect(receipt.id).toBe(`${nonce}:${streamId}`)
@@ -50,9 +50,9 @@ describe('Receipt', () => {
 
     it('throws if the receipt is invalid', () => {
       const receiptBuf = new Writer(65)
+      receiptBuf.writeOctetString(receiptData, 33)
       // invalid hmac
       receiptBuf.writeOctetString(Buffer.alloc(32), 32)
-      receiptBuf.writeOctetString(receiptData, 33)
 
       // function invalidFromBuffer() {
       //   Receipt.fromBuffer(receiptBuf.getBuffer(), seed)

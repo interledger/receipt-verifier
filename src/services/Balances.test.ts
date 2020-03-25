@@ -47,8 +47,8 @@ describe('Balances', () => {
 
     const secret = generateReceiptSecret(seed, nonce)
     const receiptBuf = new Writer(65)
-    receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
     receiptBuf.writeOctetString(receiptData, 33)
+    receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
     return receiptBuf.getBuffer().toString('base64')
   }
 
