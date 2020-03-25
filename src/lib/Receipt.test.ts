@@ -1,4 +1,4 @@
-import { Receipt } from './Receipt'
+import { Receipt, RECEIPT_VERSION } from './Receipt'
 import * as Long from 'long'
 import { Writer } from 'oer-utils'
 import { generateReceiptSecret, hmac } from '../util/crypto'
@@ -29,17 +29,21 @@ describe('Receipt', () => {
     const totalReceived = Long.fromNumber(1000)
     const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
 
-    const data = new Writer(33)
-    data.writeOctetString(nonce, 16)
-    data.writeUInt8(streamId)
-    data.writeUInt64(totalReceived.toUnsigned())
-    data.writeUInt64(streamStartTime)
-    const receiptData = data.getBuffer()
+    function makeReceiptData(version = RECEIPT_VERSION): Buffer {
+      const data = new Writer(34)
+      data.writeUInt8(version)
+      data.writeOctetString(nonce, 16)
+      data.writeUInt8(streamId)
+      data.writeUInt64(totalReceived.toUnsigned())
+      data.writeUInt64(streamStartTime)
+      return data.getBuffer()
+    }
 
     it('creates new Receipt', () => {
       const secret = generateReceiptSecret(seed, nonce)
-      const receiptBuf = new Writer(65)
-      receiptBuf.writeOctetString(receiptData, 33)
+      const receiptBuf = new Writer(66)
+      const receiptData = makeReceiptData()
+      receiptBuf.writeOctetString(receiptData, 34)
       receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
 
       const receipt = Receipt.fromBuffer(receiptBuf.getBuffer(), seed)
@@ -48,17 +52,27 @@ describe('Receipt', () => {
       expect(receipt.streamStartTime).toEqual(streamStartTime)
     })
 
+    it('throws if the receipt version is invalid', () => {
+      const secret = generateReceiptSecret(seed, nonce)
+      const receiptBuf = new Writer(66)
+      const badVersion = 2
+      const receiptData = makeReceiptData(badVersion)
+      receiptBuf.writeOctetString(receiptData, 34)
+      receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
+
+      try {
+        Receipt.fromBuffer(receiptBuf.getBuffer(), seed)
+        fail()
+      } catch (error) {
+        expect(error.message).toBe('invalid receipt version')
+      }
+    })
+
     it('throws if the receipt is invalid', () => {
-      const receiptBuf = new Writer(65)
-      receiptBuf.writeOctetString(receiptData, 33)
+      const receiptBuf = new Writer(66)
+      receiptBuf.writeOctetString(makeReceiptData(), 34)
       // invalid hmac
       receiptBuf.writeOctetString(Buffer.alloc(32), 32)
-
-      // function invalidFromBuffer() {
-      //   Receipt.fromBuffer(receiptBuf.getBuffer(), seed)
-      // }
-
-      // expect(invalidFromBuffer).toThrowError(new Error('invalid receipt'))
 
       try {
         Receipt.fromBuffer(receiptBuf.getBuffer(), seed)

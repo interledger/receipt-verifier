@@ -6,7 +6,7 @@ import * as raw from 'raw-body'
 import { Balances } from './Balances'
 import { Config } from './Config'
 import { Redis } from './Redis'
-import { RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
+import { RECEIPT_LENGTH_BASE64, RECEIPT_VERSION } from '../lib/Receipt'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
 describe('Balances', () => {
@@ -38,7 +38,8 @@ describe('Balances', () => {
     const totalReceived = amount.toUnsigned()
     const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
 
-    const data = new Writer(33)
+    const data = new Writer(34)
+    data.writeUInt8(RECEIPT_VERSION)
     data.writeOctetString(nonce, 16)
     data.writeUInt8(streamId)
     data.writeUInt64(totalReceived)
@@ -46,8 +47,8 @@ describe('Balances', () => {
     const receiptData = data.getBuffer()
 
     const secret = generateReceiptSecret(seed, nonce)
-    const receiptBuf = new Writer(65)
-    receiptBuf.writeOctetString(receiptData, 33)
+    const receiptBuf = new Writer(66)
+    receiptBuf.writeOctetString(receiptData, 34)
     receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
     return receiptBuf.getBuffer().toString('base64')
   }
