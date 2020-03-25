@@ -8,11 +8,18 @@ describe('SPSP', () => {
   let spsp: SPSP
   let config: Config
   let targetServer: Server
-  const targetResp = 'Hello SPSP!'
+  let nRequests = 0
+  const targetResp = {
+    destination_account: 'address',
+    shared_secret: 'secret',
+    receipts: true
+  }
 
   beforeAll(async () => {
     targetServer = createServer(function (req, res) {
-      res.write(targetResp)
+      nRequests++
+      targetResp.receipts = nRequests !== 2
+      res.write(JSON.stringify(targetResp))
       res.end()
     })
     targetServer.listen()
@@ -49,8 +56,17 @@ describe('SPSP', () => {
         }
       })
       expect(resp.status).toBe(200)
-      const body = await resp.text()
-      expect(body).toBe(targetResp)
+      const body = await resp.json()
+      expect(body).toStrictEqual(targetResp)
+    })
+
+    it('returns 409 if SPSP endpoint doesn\'t support receipts', async () => {
+      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+        headers: {
+          Accept: 'application/spsp4+json'
+        }
+      })
+      expect(resp.status).toBe(409)
     })
   })
 })

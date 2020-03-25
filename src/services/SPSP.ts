@@ -21,11 +21,29 @@ export class SPSP {
           req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
+        this.proxyServer.on('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
+          const chunks: Buffer[] = []
+          proxyRes.on('data', chunk => {
+            chunks.push(chunk)
+          })
+          proxyRes.on('end', () => {
+            const body = Buffer.concat(chunks)
+            const spspRes = JSON.parse(body.toString())
+            if (spspRes.receipts) {
+              // should this strip 'receipts'?
+              res.end(body)
+            } else {
+              res.statusCode = 409
+              res.end()
+            }
+          })
+        })
         this.proxyServer.web(req, res, {
           headers: {
             'Receipt-Nonce': nonce.toString('base64'),
             'Receipt-Secret': secret.toString('base64')
-          }
+          },
+          selfHandleResponse : true
         })
       } else {
         res.statusCode = 404
