@@ -3,15 +3,18 @@ import { randomBytes, generateReceiptSecret } from '../util/crypto'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import * as httpProxy from 'http-proxy'
 import * as url from 'url'
+import { Redis } from './Redis'
 import { Config } from './Config'
 
 export class SPSP {
   private config: Config
+  private redis: Redis
   private proxyServer: httpProxy
   private server: Server
 
   constructor (deps: Injector) {
     this.config = deps(Config)
+    this.redis = deps(Redis)
     this.proxyServer = httpProxy.createProxyServer({
       target: this.config.spspEndpoint
     })
@@ -26,18 +29,19 @@ export class SPSP {
           proxyRes.on('data', chunk => {
             chunks.push(chunk)
           })
-          proxyRes.on('end', () => {
+          proxyRes.on('end', async () => {
             const body = Buffer.concat(chunks)
             const spspRes = JSON.parse(body.toString())
             if (spspRes.receipts) {
               // should this strip 'receipts'?
+              await this.redis.setReceiptTTL(nonce.toString('base64'))
               res.end(body)
             } else {
               res.statusCode = 409
               res.end()
             }
           })
-        })
+        }.bind(this))
         this.proxyServer.web(req, res, {
           headers: {
             'Receipt-Nonce': nonce.toString('base64'),

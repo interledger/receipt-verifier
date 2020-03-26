@@ -3,23 +3,22 @@ import fetch from 'node-fetch'
 import { createServer, Server } from 'http'
 import { SPSP } from './SPSP'
 import { Config } from './Config'
+import { Redis, RECEIPT_KEY } from './Redis'
 
 describe('SPSP', () => {
   let spsp: SPSP
   let config: Config
+  let redis: Redis
   let targetServer: Server
   let nRequests = 0
-  const targetResp = {
-    destination_account: 'address',
-    shared_secret: 'secret',
-    receipts: true
-  }
 
   beforeAll(async () => {
-    targetServer = createServer(function (req, res) {
+    targetServer = createServer((req, res) => {
       nRequests++
-      targetResp.receipts = nRequests !== 2
-      res.write(JSON.stringify(targetResp))
+      res.write(JSON.stringify({
+        nonce: req.headers['receipt-nonce'],
+        receipts: nRequests !== 3
+      }))
       res.end()
     })
     targetServer.listen()
@@ -30,12 +29,17 @@ describe('SPSP', () => {
     const deps = reduct()
     spsp = deps(SPSP)
     config = deps(Config)
+    redis = deps(Redis)
+    redis.start()
     spsp.start()
+    await redis.flushdb()
   })
 
-  afterAll(() => {
+  afterAll(async () => {
     targetServer.close()
     spsp.stop()
+    await redis.flushdb()
+    redis.stop()
   })
 
   describe('GET /.well-known/pay', () => {
@@ -57,7 +61,20 @@ describe('SPSP', () => {
       })
       expect(resp.status).toBe(200)
       const body = await resp.json()
-      expect(body).toStrictEqual(targetResp)
+      expect(body.receipts).toBe(true)
+    })
+
+    it('stores receipt nonce with expiration to redis', async () => {
+      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+        headers: {
+          Accept: 'application/spsp4+json'
+        }
+      })
+      expect(resp.status).toBe(200)
+      const body = await resp.json()
+      const ttl = await redis._redis.ttl(`${RECEIPT_KEY}:${body.nonce}`)
+      expect(ttl).toBeGreaterThan(0)
+      expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
 
     it('returns 409 if SPSP endpoint doesn\'t support receipts', async () => {

@@ -7,13 +7,13 @@ import { Config } from './Config'
 import { Receipt } from '../lib/Receipt'
 
 interface CustomRedis extends ioredis.Redis {
-  getReceiptValue(key: string, tempKey: string, amount: string, ttlSeconds: number): Promise<string>
+  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string>
   creditBalance(key: string, amount: string): Promise<string>
   spendBalance(key: string, amount: string): Promise<string>
 }
 
 interface CustomRedisMock extends ioredisMock {
-  getReceiptValue(key: string, tempKey: string, amount: string, ttlSeconds: number): Promise<string>
+  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string>
   creditBalance(key: string, amount: string): Promise<string>
   spendBalance(key: string, amount: string): Promise<string>
 }
@@ -42,9 +42,9 @@ export class Redis {
     this.redis.defineCommand('getReceiptValue', {
       numberOfKeys: 2,
       lua: `
-local amount = ARGV[1]
-local ttl = ARGV[2]
-local prevAmount = redis.call('get', KEYS[1])
+local streamId = ARGV[1]
+local amount = ARGV[2]
+local prevAmount = redis.call('hget', KEYS[1], streamId)
 if prevAmount then
   local tempKey = KEYS[2]
   redis.call('set', tempKey, amount, 'EX', 1)
@@ -53,11 +53,11 @@ if prevAmount then
   if string.sub(diff, 1, 1) == '-' then
     return '0'
   else
-    redis.call('set', KEYS[1], amount, 'EX', ttl)
+    redis.call('hset', KEYS[1], streamId, amount)
     return diff
   end
 else
-  redis.call('set', KEYS[1], amount, 'EX', ttl)
+  redis.call('hset', KEYS[1], streamId, amount)
   return amount
 end
 `
@@ -104,18 +104,24 @@ end
     await this.redis.flushdb()
   }
 
+  async setReceiptTTL (nonce: string): Promise<void> {
+    const key = `${RECEIPT_KEY}:${nonce}`
+    await this.redis.hset(key, 'dummy', 0)
+    await this.redis.expire(key, this.config.receiptTTLSeconds)
+  }
+
   async getReceiptValue (receipt: Receipt): Promise<Long> {
     if (receipt.totalReceived.compare(Long.MAX_VALUE) === 1) {
       throw new Error('receipt amount exceeds max 64 bit signed integer')
     }
-    const receiptTTL = receipt.getRemainingTTL(this.config.receiptTTLSeconds)
-    if (receiptTTL === 0) {
+    const key = `${RECEIPT_KEY}:${receipt.nonce}`
+    if (await this.redis.exists(key)) {
+      const tempKey = `${TEMP_KEY}:${uuidv4()}`
+      const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
+      return Long.fromString(value)
+    } else {
       return Long.UZERO
     }
-    const key = `${RECEIPT_KEY}:${receipt.id}`
-    const tempKey = `${TEMP_KEY}:${uuidv4()}`
-    const value = await this.redis.getReceiptValue(key, tempKey, receipt.totalReceived.toString(), receiptTTL)
-    return Long.fromString(value)
   }
 
   async creditBalance (id: string, amount: Long): Promise<Long> {

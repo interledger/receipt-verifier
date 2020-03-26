@@ -19,8 +19,6 @@ export class Balances {
   }
 
   start (): void {
-    this.redis.start()
-
     const koa = new Koa()
     const router = new Router()
 
@@ -86,8 +84,7 @@ export class Balances {
     })
   }
 
-  async stop (): Promise<void> {
-    await this.redis.stop()
+  stop (): void {
     this.server.close()
   }
 }

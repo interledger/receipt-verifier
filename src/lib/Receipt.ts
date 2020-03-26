@@ -5,27 +5,27 @@ import { generateReceiptSecret, hmac } from '../util/crypto'
 const RECEIPT_VERSION = 1
 export { RECEIPT_VERSION }
 
-const RECEIPT_LENGTH = 66
+const RECEIPT_LENGTH = 58
 export { RECEIPT_LENGTH }
 
-const RECEIPT_LENGTH_BASE64 = 88
+const RECEIPT_LENGTH_BASE64 = 80
 export { RECEIPT_LENGTH_BASE64 }
 
 export interface ReceiptOpts {
-  id: string
+  nonce: string
+  streamId: string
   totalReceived: Long
-  streamStartTime: Long
 }
 
 export class Receipt {
-  id: string
+  nonce: string
+  streamId: string
   totalReceived: Long
-  streamStartTime: Long
 
   constructor (opts: ReceiptOpts) {
-    this.id = opts.id
+    this.nonce = opts.nonce
+    this.streamId = opts.streamId
     this.totalReceived = opts.totalReceived
-    this.streamStartTime = opts.streamStartTime
   }
 
   static fromBuffer (receipt: Buffer, seed: Buffer): Receipt {
@@ -34,27 +34,20 @@ export class Receipt {
       throw new Error('invalid receipt version')
     }
     const nonce = reader.readOctetString(16)
-    const streamId = reader.readUInt8Number()
+    const streamId = reader.readUInt8()
     const totalReceived = reader.readUInt64Long()
-    const streamStartTime = reader.readUInt64Long()
 
     const receiptHmac = reader.readOctetString(32)
     const secret = generateReceiptSecret(seed, nonce)
 
-    if (!receiptHmac.equals(hmac(secret, reader.buffer.slice(0, 34)))) {
+    if (!receiptHmac.equals(hmac(secret, reader.buffer.slice(0, 26)))) {
       throw new Error('invalid receipt')
     }
 
     return new Receipt({
-      id: `${nonce}:${streamId}`,
-      totalReceived,
-      streamStartTime
+      nonce: nonce.toString('base64'),
+      streamId,
+      totalReceived
     })
-  }
-
-  getRemainingTTL (receiptTTLSeconds: number): number {
-    const expireTime = this.streamStartTime.toNumber() + receiptTTLSeconds
-    const remaining = Math.ceil(expireTime - (Date.now() / 1000))
-    return remaining > 0 ? remaining : 0
   }
 }

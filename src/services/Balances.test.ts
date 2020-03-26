@@ -7,12 +7,14 @@ import { Balances } from './Balances'
 import { Config } from './Config'
 import { Redis } from './Redis'
 import { RECEIPT_LENGTH_BASE64, RECEIPT_VERSION } from '../lib/Receipt'
-import { generateReceiptSecret, hmac } from '../util/crypto'
+import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
 
 describe('Balances', () => {
   let balances: Balances
   let config: Config
   let redis: Redis
+
+  const nonce = Buffer.alloc(16)
 
   process.env.SPSP_ENDPOINT = 'http://localhost:3000'
 
@@ -21,8 +23,13 @@ describe('Balances', () => {
     balances = deps(Balances)
     config = deps(Config)
     redis = deps(Redis)
+    redis.start()
     balances.start()
     await redis.flushdb()
+  })
+
+  beforeEach(async () => {
+    await redis.setReceiptTTL(nonce.toString('base64'))
   })
 
   afterEach(async () => {
@@ -31,24 +38,22 @@ describe('Balances', () => {
 
   afterAll(() => {
     balances.stop()
+    redis.stop()
   })
 
-  function makeReceipt(amount: Long, seed: Buffer, streamId = 1): string {
-    const nonce = Buffer.alloc(16)
+  function makeReceipt(amount: Long, seed: Buffer, streamId = 1, receiptNonce = nonce): string {
     const totalReceived = amount.toUnsigned()
-    const streamStartTime = Long.fromNumber(Math.floor(Date.now() / 1000), true)
 
-    const data = new Writer(34)
+    const data = new Writer(26)
     data.writeUInt8(RECEIPT_VERSION)
-    data.writeOctetString(nonce, 16)
+    data.writeOctetString(receiptNonce, 16)
     data.writeUInt8(streamId)
     data.writeUInt64(totalReceived)
-    data.writeUInt64(streamStartTime)
     const receiptData = data.getBuffer()
 
-    const secret = generateReceiptSecret(seed, nonce)
-    const receiptBuf = new Writer(66)
-    receiptBuf.writeOctetString(receiptData, 34)
+    const secret = generateReceiptSecret(seed, receiptNonce)
+    const receiptBuf = new Writer(58)
+    receiptBuf.writeOctetString(receiptData, 26)
     receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
     return receiptBuf.getBuffer().toString('base64')
   }
@@ -104,19 +109,10 @@ describe('Balances', () => {
     })
 
     it('returns 400 for expired receipt', async () => {
-      const receiptTime = new Date('2000-01-01T00:00:00.000Z')
-      jest.spyOn(global.Date, 'now')
-      .mockImplementationOnce(() =>
-        receiptTime.valueOf()
-      )
       const id = 'id'
       const amount = Long.fromNumber(10)
-      const receipt = makeReceipt(amount, config.receiptSeed)
-      const now = receiptTime.valueOf() + (config.receiptTTLSeconds * 1000)
-      jest.spyOn(global.Date, 'now')
-      .mockImplementationOnce(() =>
-        now
-      )
+      const expiredNonce = randomBytes(16)
+      const receipt = makeReceipt(amount, config.receiptSeed, 1, expiredNonce)
       const resp = await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
         method: 'POST',
         body: receipt
@@ -124,8 +120,6 @@ describe('Balances', () => {
       expect(resp.status).toBe(400)
       const error = await resp.text()
       expect(error).toBe('expired receipt')
-
-      jest.clearAllMocks()
     })
 
     it('returns 400 for receipt with lower amount', async () => {
