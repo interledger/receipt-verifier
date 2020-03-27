@@ -44,8 +44,12 @@ export class Redis {
       lua: `
 local streamId = ARGV[1]
 local amount = ARGV[2]
-local prevAmount = redis.call('hget', KEYS[1], streamId)
+local prevAmount = redis.call('get', KEYS[1])
 if prevAmount then
+  if prevAmount == '0' then
+    redis.call('set', KEYS[1], amount, 'KEEPTTL')
+    return amount
+  end
   local tempKey = KEYS[2]
   redis.call('set', tempKey, amount, 'EX', 1)
   redis.call('decrby', tempKey, prevAmount)
@@ -53,12 +57,11 @@ if prevAmount then
   if string.sub(diff, 1, 1) == '-' then
     return '0'
   else
-    redis.call('hset', KEYS[1], streamId, amount)
+    redis.call('set', KEYS[1], amount, 'KEEPTTL')
     return diff
   end
 else
-  redis.call('hset', KEYS[1], streamId, amount)
-  return amount
+  return '0'
 end
 `
     })
@@ -106,8 +109,7 @@ end
 
   async setReceiptTTL (nonce: string): Promise<void> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    await this.redis.hset(key, 'dummy', 0)
-    await this.redis.expire(key, this.config.receiptTTLSeconds)
+    await this.redis.set(key, 0, 'EX', this.config.receiptTTLSeconds)
   }
 
   async getReceiptValue (receipt: Receipt): Promise<Long> {
@@ -115,13 +117,9 @@ end
       throw new Error('receipt amount exceeds max 64 bit signed integer')
     }
     const key = `${RECEIPT_KEY}:${receipt.nonce}`
-    if (await this.redis.exists(key)) {
-      const tempKey = `${TEMP_KEY}:${uuidv4()}`
-      const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
-      return Long.fromString(value)
-    } else {
-      return Long.UZERO
-    }
+    const tempKey = `${TEMP_KEY}:${uuidv4()}`
+    const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
+    return Long.fromString(value)
   }
 
   async creditBalance (id: string, amount: Long): Promise<Long> {
