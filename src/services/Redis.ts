@@ -4,7 +4,7 @@ import * as ioredisMock from 'ioredis-mock'
 import * as Long from 'long'
 import { v4 as uuidv4 } from 'uuid'
 import { Config } from './Config'
-import { Receipt } from '../lib/Receipt'
+import { Receipt } from 'ilp-protocol-stream'
 
 interface CustomRedis extends ioredis.Redis {
   getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string>
@@ -114,7 +114,7 @@ end
     if (receipt.totalReceived.compare(Long.MAX_VALUE) === 1) {
       throw new Error('receipt amount exceeds max 64 bit signed integer')
     }
-    const key = `${RECEIPT_KEY}:${receipt.nonce}`
+    const key = `${RECEIPT_KEY}:${receipt.nonce.toString('base64')}`
     if (await this.redis.exists(key)) {
       const tempKey = `${TEMP_KEY}:${uuidv4()}`
       const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())

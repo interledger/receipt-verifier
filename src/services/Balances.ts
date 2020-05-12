@@ -7,7 +7,10 @@ import * as Long from 'long'
 import * as raw from 'raw-body'
 import { Redis } from './Redis'
 import { Config } from './Config'
-import { Receipt, RECEIPT_LENGTH_BASE64 } from '../lib/Receipt'
+import { decodeReceipt, Receipt, verifyReceipt } from 'ilp-protocol-stream'
+import { generateReceiptSecret, hmac } from '../util/crypto'
+
+const RECEIPT_LENGTH_BASE64 = 80
 
 export class Balances {
   private config: Config
@@ -30,7 +33,9 @@ export class Balances {
 
       let receipt: Receipt
       try {
-        receipt = Receipt.fromBuffer(Buffer.from(body.toString(), 'base64'), this.config.receiptSeed)
+        const receiptBytes = Buffer.from(body.toString(), 'base64')
+        receipt = decodeReceipt(receiptBytes)
+        verifyReceipt(receiptBytes, generateReceiptSecret(this.config.receiptSeed, receipt.nonce))
       } catch (error) {
         ctx.throw(400, error.message)
       }

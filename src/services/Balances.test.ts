@@ -1,13 +1,14 @@
 import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
-import { Writer } from 'oer-utils'
 import * as raw from 'raw-body'
 import { Balances } from './Balances'
 import { Config } from './Config'
 import { Redis } from './Redis'
-import { RECEIPT_LENGTH_BASE64, RECEIPT_VERSION } from '../lib/Receipt'
+import { createReceipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
+
+const RECEIPT_LENGTH_BASE64 = 80
 
 describe('Balances', () => {
   let balances: Balances
@@ -42,20 +43,12 @@ describe('Balances', () => {
   })
 
   function makeReceipt(amount: Long, seed: Buffer, streamId = 1, receiptNonce = nonce): string {
-    const totalReceived = amount.toUnsigned()
-
-    const data = new Writer(26)
-    data.writeUInt8(RECEIPT_VERSION)
-    data.writeOctetString(receiptNonce, 16)
-    data.writeUInt8(streamId)
-    data.writeUInt64(totalReceived)
-    const receiptData = data.getBuffer()
-
-    const secret = generateReceiptSecret(seed, receiptNonce)
-    const receiptBuf = new Writer(58)
-    receiptBuf.writeOctetString(receiptData, 26)
-    receiptBuf.writeOctetString(hmac(secret, receiptData), 32)
-    return receiptBuf.getBuffer().toString('base64')
+    return createReceipt({
+      nonce: receiptNonce,
+      streamId,
+      totalReceived: amount.toUnsigned(),
+      secret: generateReceiptSecret(seed, receiptNonce)
+    }).toString('base64')
   }
 
   describe('POST /balances/{id}:creditReceipt', () => {
@@ -105,7 +98,7 @@ describe('Balances', () => {
       })
       expect(resp.status).toBe(400)
       const error = await resp.text()
-      expect(error).toBe('invalid receipt')
+      expect(error).toBe('invalid hmac')
     })
 
     it('returns 400 for expired receipt', async () => {

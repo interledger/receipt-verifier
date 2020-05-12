@@ -1,7 +1,7 @@
 import reduct from 'reduct'
 import { Redis, BALANCE_KEY, RECEIPT_KEY } from './Redis'
 import { Config } from './Config'
-import { Receipt } from '../lib/Receipt'
+import { Receipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import * as Long from 'long'
 
 describe('Redis', () => {
@@ -49,11 +49,11 @@ describe('Redis', () => {
   })
 
   describe('getReceiptValue', () => {
-    const nonce = '123'
+    const nonce = Buffer.from('123', 'base64')
     const streamId = '1'
 
     beforeEach(async () => {
-      await redis.setReceiptTTL(nonce)
+      await redis.setReceiptTTL(nonce.toString('base64'))
     })
 
     afterAll(() => {
@@ -61,55 +61,61 @@ describe('Redis', () => {
     })
 
     it('returns the amount of the initial receipt', async () => {
-      const receipt = new Receipt ({
+      const receipt = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
       const value = await redis.getReceiptValue(receipt)
       expect(value.compare(receipt.totalReceived)).toBe(0)
     })
 
     it('sets stored receipt amount', async () => {
-      const receipt = new Receipt ({
+      const receipt = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
-      const key = `${RECEIPT_KEY}:${receipt.nonce}`
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const key = `${RECEIPT_KEY}:${receipt.nonce.toString('base64')}`
       expect(await redis._redis.hget(key, receipt.streamId)).toBeNull()
       await redis.getReceiptValue(receipt)
       expect(await redis._redis.hget(key, receipt.streamId)).toBe(receipt.totalReceived.toString())
     })
 
     it('returns the incremented amount of a subsequent receipt', async () => {
-      const receipt1 = new Receipt ({
+      const receipt1 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
-      const receipt2 = new Receipt ({
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const receipt2 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(15)
-      })
+        totalReceived: Long.fromNumber(15),
+        version: RECEIPT_VERSION
+      }
       await redis.getReceiptValue(receipt1)
       const value = await redis.getReceiptValue(receipt2)
       expect(value.compare(5)).toBe(0)
     })
 
     it('increases stored receipt amount', async () => {
-      const receipt1 = new Receipt ({
+      const receipt1 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
-      const receipt2 = new Receipt ({
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const receipt2 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(15)
-      })
-      const key = `${RECEIPT_KEY}:${receipt1.nonce}`
+        totalReceived: Long.fromNumber(15),
+        version: RECEIPT_VERSION
+      }
+      const key = `${RECEIPT_KEY}:${receipt1.nonce.toString('base64')}`
       expect(await redis._redis.hget(key, streamId)).toBeNull()
       await redis.getReceiptValue(receipt1)
       expect(await redis._redis.hget(key, streamId)).toBe(receipt1.totalReceived.toString())
@@ -118,33 +124,37 @@ describe('Redis', () => {
     })
 
     it('returns zero for receipt with lower amount', async () => {
-      const receipt1 = new Receipt ({
+      const receipt1 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
-      const receiptLess = new Receipt ({
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const receiptLess = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(5)
-      })
+        totalReceived: Long.fromNumber(5),
+        version: RECEIPT_VERSION
+      }
       await redis.getReceiptValue(receipt1)
       const value = await redis.getReceiptValue(receiptLess)
       expect(value.compare(0)).toBe(0)
     })
 
     it('won\'t decrease stored receipt amount', async () => {
-      const receipt1 = new Receipt ({
+      const receipt1 = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(10)
-      })
-      const receiptOld = new Receipt ({
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const receiptOld = {
         nonce,
         streamId,
-        totalReceived: Long.fromNumber(5)
-      })
-      const key = `${RECEIPT_KEY}:${receipt1.nonce}`
+        totalReceived: Long.fromNumber(5),
+        version: RECEIPT_VERSION
+      }
+      const key = `${RECEIPT_KEY}:${receipt1.nonce.toString('base64')}`
       expect(await redis._redis.hget(key, streamId)).toBeNull()
       await redis.getReceiptValue(receipt1)
       expect(await redis._redis.hget(key, streamId)).toBe(receipt1.totalReceived.toString())
@@ -153,16 +163,18 @@ describe('Redis', () => {
     })
 
     it('throws for receipt amount greater than max 64 bit signed int', async () => {
-      const receiptSafe = new Receipt ({
+      const receiptSafe = {
         nonce,
         streamId,
-        totalReceived: Long.MAX_VALUE.toUnsigned()
-      })
-      const receiptBig = new Receipt ({
+        totalReceived: Long.MAX_VALUE.toUnsigned(),
+        version: RECEIPT_VERSION
+      }
+      const receiptBig = {
         nonce,
         streamId,
-        totalReceived: receiptSafe.totalReceived.add(1)
-      })
+        totalReceived: receiptSafe.totalReceived.add(1),
+        version: RECEIPT_VERSION
+      }
       await redis.getReceiptValue(receiptSafe)
       try {
         await redis.getReceiptValue(receiptBig)
@@ -173,28 +185,31 @@ describe('Redis', () => {
     })
 
     it('returns zero for expired receipt nonce', async () => {
-      const receipt = new Receipt ({
-        nonce: 'expired',
+      const receipt = {
+        nonce: Buffer.from('expired'),
         streamId,
         totalReceived: Long.fromNumber(10),
-      })
+        version: RECEIPT_VERSION
+      }
       const value = await redis.getReceiptValue(receipt)
       expect(value.compare(0)).toBe(0)
     })
 
     it('store receipt amounts for multiple stream ids', async () => {
-      const receipt1 = new Receipt ({
+      const receipt1 = {
         nonce,
         streamId,
         totalReceived: Long.fromNumber(10),
-      })
-      const receipt2 = new Receipt ({
+        version: RECEIPT_VERSION
+      }
+      const receipt2 = {
         nonce,
         streamId: '2',
         totalReceived: Long.fromNumber(5),
-      })
+        version: RECEIPT_VERSION
+      }
       await redis.getReceiptValue(receipt1)
-      const key2 = `${RECEIPT_KEY}:${receipt2.nonce}`
+      const key2 = `${RECEIPT_KEY}:${receipt2.nonce.toString('base64')}`
       expect(await redis._redis.hget(key2, receipt2.streamId)).toBeNull()
       const value = await redis.getReceiptValue(receipt2)
       expect(value.compare(receipt2.totalReceived)).toBe(0)
