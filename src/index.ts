@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import reduct from 'reduct'
 import { App } from './services/App'
 
