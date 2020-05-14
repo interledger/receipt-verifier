@@ -19,9 +19,7 @@ export class SPSP {
       target: this.config.spspEndpoint
     })
     this.server = createServer(function(req: IncomingMessage, res: ServerResponse) {
-      const path = req.url && url.parse(req.url).pathname
-      if (path && /\/\.well-known\/pay$/.test(path) &&
-          req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
+      if (req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
         this.proxyServer.on('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
@@ -47,6 +45,7 @@ export class SPSP {
             'Receipt-Nonce': nonce.toString('base64'),
             'Receipt-Secret': secret.toString('base64')
           },
+          ignorePath: true,
           selfHandleResponse : true
         })
       } else {
