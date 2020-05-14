@@ -17,7 +17,7 @@ describe('SPSP', () => {
       nRequests++
       res.write(JSON.stringify({
         nonce: req.headers['receipt-nonce'],
-        receipts: nRequests !== 3
+        receipts_enabled: nRequests !== 3
       }))
       res.end()
     })
@@ -61,7 +61,7 @@ describe('SPSP', () => {
       })
       expect(resp.status).toBe(200)
       const body = await resp.json()
-      expect(body.receipts).toBe(true)
+      expect(body.receipts_enabled).toBe(true)
     })
 
     it('stores receipt nonce with expiration to redis', async () => {

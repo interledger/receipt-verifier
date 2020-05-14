@@ -32,8 +32,8 @@ export class SPSP {
           proxyRes.on('end', async () => {
             const body = Buffer.concat(chunks)
             const spspRes = JSON.parse(body.toString())
-            if (spspRes.receipts) {
-              // should this strip 'receipts'?
+            if (spspRes.receipts_enabled) {
+              // should this strip 'receipts_enabled'?
               await this.redis.setReceiptTTL(nonce.toString('base64'))
               res.end(body)
             } else {
