@@ -1,6 +1,7 @@
 import { Injector } from 'reduct'
 import { Server } from 'http'
 import * as Koa from 'koa'
+import * as cors from '@koa/cors'
 import * as Router from 'koa-router'
 import * as Long from 'long'
 import * as raw from 'raw-body'
@@ -75,8 +76,9 @@ export class Balances {
       }
     })
 
+    koa.use(cors())
     koa.use(router.routes())
-    koa.use(router.allowedMethods());
+    koa.use(router.allowedMethods())
     this.server = koa.listen(this.config.port, () => {
       if (process.env.NODE_ENV !== 'test') {
         console.log('Balances API listening on port: ' + this.config.port)
