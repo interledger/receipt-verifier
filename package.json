@@ -19,7 +19,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@koa/cors": "^2.2.3",
-    "http-proxy": "^1.18.0",
+    "http-proxy": "^1.18.1",
     "ilp-protocol-stream": "^2.6.0",
     "ioredis": "^4.14.1",
     "ioredis-mock": "^4.19.0",
