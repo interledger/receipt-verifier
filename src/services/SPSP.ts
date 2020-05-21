@@ -16,7 +16,8 @@ export class SPSP {
     this.config = deps(Config)
     this.redis = deps(Redis)
     this.proxyServer = httpProxy.createProxyServer({
-      target: this.config.spspEndpoint
+      target: this.config.spspEndpoint,
+      changeOrigin: true
     })
     this.server = createServer(function(req: IncomingMessage, res: ServerResponse) {
       if (req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
@@ -29,12 +30,19 @@ export class SPSP {
           })
           proxyRes.on('end', async () => {
             const body = Buffer.concat(chunks)
-            const spspRes = JSON.parse(body.toString())
-            if (spspRes.receipts_enabled) {
-              // should this strip 'receipts_enabled'?
-              await this.redis.setReceiptTTL(nonce.toString('base64'))
-              res.end(body)
-            } else {
+            try {
+              const spspRes = JSON.parse(body.toString())
+              if (spspRes.receipts_enabled) {
+                // should this strip 'receipts_enabled'?
+                await this.redis.setReceiptTTL(nonce.toString('base64'))
+                res.end(body)
+              } else {
+                res.statusCode = 409
+                res.end()
+              }
+            } catch (err) {
+              console.log(body.toString())
+              console.log(err)
               res.statusCode = 409
               res.end()
             }
