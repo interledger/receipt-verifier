@@ -1,5 +1,5 @@
 {
-  "name": "receipt-verifier",
+  "name": "@coil/receipt-verifier",
   "version": "1.0.0",
   "repository": {
     "type": "git",
