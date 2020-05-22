@@ -1,6 +1,7 @@
 # Receipt Verifier
 > Manages [Interledger STREAM](https://interledger.org/rfcs/0029-stream/) receipts
 
+[![npm version](https://badge.fury.io/js/%40coil%2Freceipt-verifier.svg)](https://badge.fury.io/js/%40coil%2Freceipt-verifier)
 ![](https://github.com/wilsonianb/receipt-verifier/workflows/Node.js%20CI/badge.svg)
 
 STREAM receipts allow recipients or third parties to verify received payments at the recipient's Interledger wallet.
