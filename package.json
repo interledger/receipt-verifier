@@ -20,7 +20,7 @@
   "dependencies": {
     "@koa/cors": "^2.2.3",
     "http-proxy": "^1.18.1",
-    "ilp-protocol-stream": "^2.6.0",
+    "ilp-protocol-stream": "^2.6.4",
     "ioredis": "^4.14.1",
     "ioredis-mock": "^4.19.0",
     "koa": "^2.11.0",
