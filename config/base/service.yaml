@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: receipt-verifier
+  namespace: default
+spec:
+  selector:
+    app: receipt-verifier
+  ports:
+  - name: balances
+    protocol: TCP
+    port: 3000
+  - name: spsp-proxy
+    protocol: TCP
+    port: 3001

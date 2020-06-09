@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: receipt-verifier
+  namespace: default
+  labels:
+    app: receipt-verifier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: receipt-verifier
+  template:
+    metadata:
+      labels:
+        app: receipt-verifier
+    spec:
+      containers:
+      - name: receipt-verifier
+        image: wilsonianbcoil/receipt-verifier
+        env:
+        - name: REDIS_URI
+          value: mock
