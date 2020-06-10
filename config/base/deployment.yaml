@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: receipt-verifier
-        image: wilsonianbcoil/receipt-verifier
+        image: coilhq/receipt-verifier
         env:
         - name: REDIS_URI
           value: mock
