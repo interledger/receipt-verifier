@@ -15,10 +15,17 @@ describe('SPSP', () => {
   beforeAll(async () => {
     targetServer = createServer((req, res) => {
       nRequests++
-      res.write(JSON.stringify({
-        nonce: req.headers['receipt-nonce'],
-        receipts_enabled: nRequests !== 3
-      }))
+      res.setHeader('access-control-allow-origin', '*')
+      res.setHeader('access-control-allow-headers', 'web-monetization-id')
+      res.setHeader('access-control-allow-methods', 'GET')
+      if (req.method === 'GET') {
+        res.write(JSON.stringify({
+          nonce: req.headers['receipt-nonce'],
+          receipts_enabled: nRequests !== 3
+        }))
+      } else {
+        res.writeHead(204)
+      }
       res.end()
     })
     targetServer.listen()
@@ -60,6 +67,9 @@ describe('SPSP', () => {
         }
       })
       expect(resp.status).toBe(200)
+      expect(resp.headers.get('access-control-allow-origin')).toContain('*')
+      expect(resp.headers.get('access-control-allow-headers')).toContain('web-monetization-id')
+      expect(resp.headers.get('access-control-allow-methods')).toContain('GET')
       const body = await resp.json()
       expect(body.receipts_enabled).toBe(true)
     })
@@ -84,6 +94,20 @@ describe('SPSP', () => {
         }
       })
       expect(resp.status).toBe(409)
+    })
+
+    it('proxies preflight request to specified SPSP endpoint', async () => {
+      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+        method: 'OPTIONS',
+        headers: {
+          'Access-Control-Request-Headers': 'origin, x-requested-with',
+          'Access-Control-Request-Method': 'GET'
+        }
+      })
+      expect(resp.status).toBe(204)
+      expect(resp.headers.get('access-control-allow-origin')).toContain('*')
+      expect(resp.headers.get('access-control-allow-headers')).toContain('web-monetization-id')
+      expect(resp.headers.get('access-control-allow-methods')).toContain('GET')
     })
   })
 })

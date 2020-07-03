@@ -20,10 +20,13 @@ export class SPSP {
       changeOrigin: true
     })
     this.server = createServer(function(req: IncomingMessage, res: ServerResponse) {
-      if (req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
+      if (req.method === 'GET' && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
         this.proxyServer.on('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
+          if (req.method !== 'GET') {
+            return
+          }
           const chunks: Buffer[] = []
           proxyRes.on('data', chunk => {
             chunks.push(chunk)
@@ -35,6 +38,7 @@ export class SPSP {
               if (spspRes.receipts_enabled) {
                 // should this strip 'receipts_enabled'?
                 await this.redis.setReceiptTTL(nonce.toString('base64'))
+                res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
                 res.end(body)
               } else {
                 res.statusCode = 409
@@ -54,7 +58,11 @@ export class SPSP {
             'Receipt-Secret': secret.toString('base64')
           },
           ignorePath: true,
-          selfHandleResponse : true
+          selfHandleResponse: true
+        })
+      } else if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] === 'GET') {
+        this.proxyServer.web(req, res, {
+          ignorePath: true
         })
       } else {
         res.statusCode = 404
