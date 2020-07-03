@@ -85,5 +85,15 @@ describe('SPSP', () => {
       })
       expect(resp.status).toBe(409)
     })
+
+    it('enables CORS', async () => {
+      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+        headers: {
+          Accept: 'application/spsp4+json'
+        }
+      })
+      expect(resp.headers.get('access-control-allow-origin')).toContain('*')
+      expect(resp.headers.get('access-control-allow-headers')).toContain('web-monetization-id')
+    })
   })
 })

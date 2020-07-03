@@ -25,6 +25,8 @@ export class SPSP {
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
         this.proxyServer.on('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
           const chunks: Buffer[] = []
+          res.setHeader('access-control-allow-origin', '*')
+          res.setHeader('access-control-allow-headers', 'web-monetization-id')
           proxyRes.on('data', chunk => {
             chunks.push(chunk)
           })
