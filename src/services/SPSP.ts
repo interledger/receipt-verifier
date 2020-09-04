@@ -23,15 +23,12 @@ export class SPSP {
       if (req.method === 'GET' && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
-        this.proxyServer.on('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
-          if (req.method !== 'GET') {
-            return
-          }
+        this.proxyServer.once('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
           const chunks: Buffer[] = []
           proxyRes.on('data', chunk => {
             chunks.push(chunk)
           })
-          proxyRes.on('end', async () => {
+          proxyRes.once('end', async () => {
             const body = Buffer.concat(chunks)
             try {
               const spspRes = JSON.parse(body.toString())
@@ -61,9 +58,12 @@ export class SPSP {
           selfHandleResponse: true
         })
       } else if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] === 'GET') {
-        this.proxyServer.web(req, res, {
-          ignorePath: true
+        res.writeHead(204, {
+          'access-control-allow-origin': '*',
+          'access-control-allow-headers': 'web-monetization-id',
+          'access-control-allow-methods': 'GET'
         })
+        res.end()
       } else {
         res.statusCode = 404
         res.end()
