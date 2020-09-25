@@ -12,7 +12,13 @@ import { generateReceiptSecret, hmac } from '../util/crypto'
 
 const RECEIPT_LENGTH_BASE64 = 80
 
-export class Balances {
+export interface ReceiptResponse {
+  nonce: string
+  streamId: string
+  totalReceived: string
+}
+
+export class Receipts {
   private config: Config
   private redis: Redis
   private server: Server
@@ -26,7 +32,7 @@ export class Balances {
     const koa = new Koa()
     const router = new Router()
 
-    router.post('/balances/:id\\:creditReceipt', async (ctx: Koa.Context) => {
+    router.post('/receipts', async (ctx: Koa.Context) => {
       const body = await raw(ctx.req, {
         limit: RECEIPT_LENGTH_BASE64
       })
@@ -53,33 +59,12 @@ export class Balances {
         ctx.throw(400, 'expired receipt')
       }
 
-      try {
-        const balance = await this.redis.creditBalance(ctx.params.id, amount)
-        ctx.response.body = balance.toString()
-        return ctx.status = 200
-      } catch (error) {
-        ctx.throw(409, error.message)
+      ctx.response.body = {
+        nonce: receipt.nonce.toString('base64'),
+        streamId: receipt.streamId.toString(),
+        totalReceived: receipt.totalReceived.toString()
       }
-    })
-
-    router.post('/balances/:id\\:spend', async (ctx: Koa.Context) => {
-      const body = await raw(ctx.req, {
-        limit: Long.MAX_VALUE.toString().length
-      })
-
-      const amount = Long.fromString(body.toString(), true)
-
-      try {
-        const balance = await this.redis.spendBalance(ctx.params.id, amount)
-        ctx.response.body = balance.toString()
-        return ctx.status = 200
-      } catch (error) {
-        // 404 for unknown balance
-        if (error.message === 'balance does not exist') {
-          ctx.throw(404, error.message)
-        }
-        ctx.throw(409, error.message)
-      }
+      return ctx.status = 200
     })
 
     koa.use(cors())
@@ -87,7 +72,7 @@ export class Balances {
     koa.use(router.allowedMethods())
     this.server = koa.listen(this.config.port, () => {
       if (process.env.NODE_ENV !== 'test') {
-        console.log('Balances API listening on port: ' + this.config.port)
+        console.log('Receipts API listening on port: ' + this.config.port)
       }
     })
   }
