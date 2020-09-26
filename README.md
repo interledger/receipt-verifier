@@ -38,9 +38,14 @@ SPSP_ENDPOINT=https://receiver-endpoint.com npm start
 * Description: The URI at which to connect to Redis. Use `mock` for [in-memory Redis](https://www.npmjs.com/package/ioredis-mock) (NOT RECOMMENDED for production)
 * Default: redis://127.0.0.1:6379/
 
-#### SPSP_ENDPOINT
+#### REVSHARE_URI
 * Type: String
-* Description: The receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which SPSP queries are proxied.
+* Description: Revshare service which is queried for each received [SPSP query](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/). The response should be object with the following fields:
+
+| Field Name     | Type   | Description              |
+|----------------|--------|--------------------------|
+| paymentPointer | string | [Payment pointer](https://paymentpointers.org/) to proxy the SPSP query to |
+| webhookUri     | string | URI to POST new receipt amounts to for this STREAM connection |
 
 #### SPSP_PROXY_PORT
 * Type: [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)

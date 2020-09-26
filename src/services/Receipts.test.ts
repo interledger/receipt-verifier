@@ -2,13 +2,11 @@ import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
 import * as raw from 'raw-body'
-import { Receipts, ReceiptResponse } from './Receipts'
+import { Receipts, ReceiptResponse, RECEIPT_LENGTH_BASE64 } from './Receipts'
 import { Config } from './Config'
 import { Redis } from './Redis'
 import { createReceipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
-
-const RECEIPT_LENGTH_BASE64 = 80
 
 describe('Receipts', () => {
   let receipts: Receipts
@@ -17,7 +15,7 @@ describe('Receipts', () => {
 
   const nonce = Buffer.alloc(16)
 
-  process.env.SPSP_ENDPOINT = 'http://localhost:3000'
+  process.env.REVSHARE_URI = 'http://localhost:3000'
 
   beforeAll(async () => {
     const deps = reduct()
@@ -30,7 +28,7 @@ describe('Receipts', () => {
   })
 
   beforeEach(async () => {
-    await redis.setReceiptTTL(nonce.toString('base64'))
+    await redis.cacheReceiptNonce(nonce.toString('base64'))
   })
 
   afterEach(async () => {

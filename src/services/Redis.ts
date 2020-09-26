@@ -2,6 +2,7 @@ import { Injector } from 'reduct'
 import * as ioredis from 'ioredis'
 import * as ioredisMock from 'ioredis-mock'
 import * as Long from 'long'
+import fetch from 'node-fetch'
 import { v4 as uuidv4 } from 'uuid'
 import { Config } from './Config'
 import { Receipt } from 'ilp-protocol-stream'
@@ -16,6 +17,7 @@ interface CustomRedisMock extends ioredisMock {
 
 export const BALANCE_KEY = 'ilpBalances'
 export const RECEIPT_KEY = 'ilpReceipts'
+export const WEBHOOK_KEY = 'webhookUri'
 const TEMP_KEY = 'ilpTemp'
 
 export class Redis {
@@ -72,9 +74,9 @@ end
     await this.redis.flushdb()
   }
 
-  async setReceiptTTL (nonce: string): Promise<void> {
+  async cacheReceiptNonce (nonce: string, webhookUri=''): Promise<void> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    await this.redis.hset(key, 'dummy', 0)
+    await this.redis.hset(key, WEBHOOK_KEY, webhookUri)
     await this.redis.expire(key, this.config.receiptTTLSeconds)
   }
 
@@ -86,6 +88,13 @@ end
     if (await this.redis.exists(key)) {
       const tempKey = `${TEMP_KEY}:${uuidv4()}`
       const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
+      const webhookUri = await this.redis.hget(key, WEBHOOK_KEY)
+      if (!!webhookUri) {
+        const res = await fetch(webhookUri, {
+          method: 'POST',
+          body: value
+        })
+      }
       return Long.fromString(value)
     } else {
       return Long.UZERO

@@ -8,7 +8,7 @@ describe('Config', () => {
         reduct()(Config)
         fail()
       } catch (err) {
-        expect(err.message).toBe('receipt-verifier requires SPSP_ENDPOINT to be set')
+        expect(err.message).toBe('receipt-verifier requires REVSHARE_URI to be set')
       }
     })
   })

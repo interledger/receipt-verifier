@@ -10,7 +10,7 @@ import { Config } from './Config'
 import { decodeReceipt, Receipt, ReceiptWithHMAC, verifyReceipt } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
-const RECEIPT_LENGTH_BASE64 = 80
+export const RECEIPT_LENGTH_BASE64 = 80
 
 export interface ReceiptResponse {
   nonce: string
