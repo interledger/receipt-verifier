@@ -7,10 +7,38 @@ import * as Long from 'long'
 import * as raw from 'raw-body'
 import { Redis } from './Redis'
 import { Config } from './Config'
-import { decodeReceipt, Receipt, ReceiptWithHMAC, verifyReceipt } from 'ilp-protocol-stream'
+import { decodeReceipt, Receipt, ReceiptWithHMAC, verifyReceipt as verifyReceiptBytes } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac } from '../util/crypto'
 
-const RECEIPT_LENGTH_BASE64 = 80
+export const RECEIPT_LENGTH_BASE64 = 80
+
+const verifyReceipt = (receiptSeed: Buffer, redis: Redis) => async (ctx: Koa.Context, next: Koa.Next) => {
+  const body = await raw(ctx.req, {
+    limit: RECEIPT_LENGTH_BASE64
+  })
+
+  let receipt: Receipt
+  try {
+    const receiptBytes = Buffer.from(body.toString(), 'base64')
+    ctx.state.receipt = verifyReceiptBytes(receiptBytes, (decoded: ReceiptWithHMAC) => {
+      return generateReceiptSecret(receiptSeed, decoded.nonce)
+    })
+  } catch (error) {
+    ctx.throw(400, error.message)
+  }
+
+  try {
+    ctx.state.receiptValue = await redis.getReceiptValue(ctx.state.receipt)
+  } catch (error) {
+    ctx.throw(409, error.message)
+  }
+
+  if (ctx.state.receiptValue.isZero()) {
+    // too old or value is less than previously submitted receipt
+    ctx.throw(400, 'expired receipt')
+  }
+  await next()
+}
 
 export class Balances {
   private config: Config
@@ -26,35 +54,9 @@ export class Balances {
     const koa = new Koa()
     const router = new Router()
 
-    router.post('/balances/:id\\:creditReceipt', async (ctx: Koa.Context) => {
-      const body = await raw(ctx.req, {
-        limit: RECEIPT_LENGTH_BASE64
-      })
-
-      let receipt: Receipt
+    router.post('/balances/:id\\:creditReceipt', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
       try {
-        const receiptBytes = Buffer.from(body.toString(), 'base64')
-        receipt = verifyReceipt(receiptBytes, (decoded: ReceiptWithHMAC) => {
-          return generateReceiptSecret(this.config.receiptSeed, decoded.nonce)
-        })
-      } catch (error) {
-        ctx.throw(400, error.message)
-      }
-
-      let amount: Long
-      try {
-        amount = await this.redis.getReceiptValue(receipt)
-      } catch (error) {
-        ctx.throw(409, error.message)
-      }
-
-      if (amount.isZero()) {
-        // too old or value is less than previously submitted receipt
-        ctx.throw(400, 'expired receipt')
-      }
-
-      try {
-        const balance = await this.redis.creditBalance(ctx.params.id, amount)
+        const balance = await this.redis.creditBalance(ctx.params.id, ctx.state.receiptValue)
         ctx.response.body = balance.toString()
         return ctx.status = 200
       } catch (error) {
@@ -80,6 +82,11 @@ export class Balances {
         }
         ctx.throw(409, error.message)
       }
+    })
+
+    router.post('/receipts', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
+      ctx.response.body = ctx.state.receiptValue.toString()
+      return ctx.status = 200
     })
 
     koa.use(cors())

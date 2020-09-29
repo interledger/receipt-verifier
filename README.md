@@ -76,3 +76,14 @@ Debits an amount from the specified balance if the balance is sufficient
 ##### Return Value:
 * Type: String
 * Description: updated balance for `ID`
+
+#### `POST /receipts`
+Verifies receipt and returns decoded values
+
+##### Request Body:
+* Type: String
+* Description: base64-encoded STREAM receipt
+
+##### Return Value:
+* Type: String
+* Description: Amount by which this receipt exceeds the previous receipt's `totalReceived`
