@@ -2,9 +2,24 @@ import { Injector } from 'reduct'
 import { randomBytes, generateReceiptSecret } from '../util/crypto'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import * as httpProxy from 'http-proxy'
+import fetch from 'node-fetch'
 import * as url from 'url'
 import { Redis } from './Redis'
 import { Config } from './Config'
+
+function resolvePointer (pointer: string): string {
+  if (!pointer.startsWith('$')) {
+    return pointer
+  }
+
+  const protocol = (process.env.NODE_ENV === 'test') ? 'http://' : 'https://'
+  const url = new URL(protocol + pointer.substring(1))
+  if (url.pathname === '/') {
+    url.pathname = '/.well-known/pay'
+  }
+
+  return url.href
+}
 
 export class SPSP {
   private config: Config
@@ -16,11 +31,32 @@ export class SPSP {
     this.config = deps(Config)
     this.redis = deps(Redis)
     this.proxyServer = httpProxy.createProxyServer({
-      target: this.config.spspEndpoint,
       changeOrigin: true
     })
-    this.server = createServer(function(req: IncomingMessage, res: ServerResponse) {
-      if (req.method === 'GET' && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
+    this.server = createServer(async function(req: IncomingMessage, res: ServerResponse) {
+      if (req.method === 'GET' && req.url && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
+        let spspEndpoint = this.config.spspEndpoint
+        let balanceId: string
+        if (this.config.spspEndpointsUrl) {
+          // Get payment pointer and balance id
+          const id = encodeURIComponent(req.url.substring(1))
+          const endpointsRes = await fetch(`${this.config.spspEndpointsUrl}?id=${id}`)
+          if (endpointsRes.status !== 200) {
+            console.log(await endpointsRes.text())
+            res.statusCode = 404
+            res.end()
+            return
+          }
+          const body = await endpointsRes.json()
+          if (!body.spspEndpoint) {
+            console.log('Invalid SPSP endpoints URL response:', JSON.stringify(body))
+            res.statusCode = 404
+            res.end()
+            return
+          }
+          spspEndpoint = body.spspEndpoint
+          balanceId = body.balanceId
+        }
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
         this.proxyServer.once('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
@@ -34,7 +70,7 @@ export class SPSP {
               const spspRes = JSON.parse(body.toString())
               if (spspRes.receipts_enabled) {
                 // should this strip 'receipts_enabled'?
-                await this.redis.setReceiptTTL(nonce.toString('base64'))
+                await this.redis.cacheReceiptNonce(nonce.toString('base64'), balanceId)
                 res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
                 res.end(body)
               } else {
@@ -42,8 +78,6 @@ export class SPSP {
                 res.end()
               }
             } catch (err) {
-              console.log(body.toString())
-              console.log(err)
               res.statusCode = 409
               res.end()
             }
@@ -55,7 +89,8 @@ export class SPSP {
             'Receipt-Secret': secret.toString('base64')
           },
           ignorePath: true,
-          selfHandleResponse: true
+          selfHandleResponse: true,
+          target: resolvePointer(spspEndpoint)
         })
       } else if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] === 'GET') {
         res.writeHead(204, {

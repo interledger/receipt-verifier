@@ -43,6 +43,19 @@ SPSP_ENDPOINT=https://receiver-endpoint.com npm start
 #### SPSP_ENDPOINT
 * Type: String
 * Description: The receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which SPSP queries are proxied.
+Mutually exclusive with `SPSP_ENDPOINTS_URL`.
+
+#### SPSP_ENDPOINTS_URL
+* Type: String
+* Description: URL used to fetch a receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which an SPSP query is proxied.
+Mutually exclusive with `SPSP_ENDPOINT`.
+For each SPSP query, a GET request is sent to `SPSP_ENDPOINTS_URL` with the query's url path value (without the preceding slash) as the URI encoded `id` query parameter.
+The response is expected to contain the following fields:
+
+| Field Name   | Type   | Description              |
+|--------------|--------|--------------------------|
+| spspEndpoint | string | SPSP endpoint to proxy the SPSP query to |
+| balanceId    | string | (_Optional_) Balance to increment for receipts from this payment submitted to the [`POST /receipts`](#post-receipts) endpoint |
 
 #### SPSP_PROXY_PORT
 * Type: [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)

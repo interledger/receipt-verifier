@@ -19,6 +19,7 @@ interface CustomRedisMock extends ioredisMock {
 }
 
 export const BALANCE_KEY = 'ilpBalances'
+export const BALANCE_ID_KEY = 'balanceId'
 export const RECEIPT_KEY = 'ilpReceipts'
 const TEMP_KEY = 'ilpTemp'
 
@@ -104,10 +105,15 @@ end
     await this.redis.flushdb()
   }
 
-  async setReceiptTTL (nonce: string): Promise<void> {
+  async cacheReceiptNonce (nonce: string, balanceId=''): Promise<void> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    await this.redis.hset(key, 'dummy', 0)
+    await this.redis.hset(key, balanceId ? BALANCE_ID_KEY : 'dummy', balanceId)
     await this.redis.expire(key, this.config.receiptTTLSeconds)
+  }
+
+  async getReceiptBalanceId (nonce: string): Promise<string | null> {
+    const key = `${RECEIPT_KEY}:${nonce}`
+    return await this.redis.hget(key, BALANCE_ID_KEY)
   }
 
   async getReceiptValue (receipt: Receipt): Promise<Long> {
@@ -122,6 +128,12 @@ end
     } else {
       return Long.UZERO
     }
+  }
+
+  async getBalance (id: string): Promise<Long | null> {
+    const key = `${BALANCE_KEY}:${id}`
+    const balance = await this.redis.get(key)
+    return balance ? Long.fromString(balance) : null
   }
 
   async creditBalance (id: string, amount: Long): Promise<Long> {
