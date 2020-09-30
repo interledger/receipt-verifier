@@ -54,6 +54,16 @@ export class Balances {
     const koa = new Koa()
     const router = new Router()
 
+    router.get('/balances/:id', async (ctx: Koa.Context) => {
+      const balance = await this.redis.getBalance(ctx.params.id)
+      if (balance) {
+        ctx.response.body = balance.toString()
+        return ctx.status = 200
+      } else {
+        ctx.throw(404)
+      }
+    })
+
     router.post('/balances/:id\\:creditReceipt', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
       try {
         const balance = await this.redis.creditBalance(ctx.params.id, ctx.state.receiptValue)
