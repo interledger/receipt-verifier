@@ -49,6 +49,27 @@ describe('Balances', () => {
     }).toString('base64')
   }
 
+  describe('GET /balances/{id}', () => {
+    it('returns balance for id', async () => {
+      const id = 'id'
+      const amount = Long.fromNumber(10)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      await fetch(`http://localhost:${config.port}/balances/${id}:creditReceipt`, {
+        method: 'POST',
+        body: receipt
+      })
+      const resp = await fetch(`http://localhost:${config.port}/balances/${id}`)
+      expect(resp.status).toBe(200)
+      const balance = await resp.text()
+      expect(balance).toBe(amount.toString())
+    })
+
+    it('returns 404 for unknown balance', async () => {
+      const resp = await fetch(`http://localhost:${config.port}/balances/unknown`)
+      expect(resp.status).toBe(404)
+    })
+  })
+
   describe('POST /balances/{id}:creditReceipt', () => {
     it('returns balance for valid receipt', async () => {
       const id = 'id'

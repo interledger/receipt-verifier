@@ -69,6 +69,13 @@ The response is expected to contain the following fields:
 
 ### API Documentation
 
+#### `GET /balances/{ID}`
+Retrieves the specified balance
+
+##### Return Value:
+* Type: String
+* Description: balance for `ID`
+
 #### `POST /balances/{ID}:creditReceipt`
 Verifies receipt and credits the receipt value to the specified balance
 
