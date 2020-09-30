@@ -1,5 +1,5 @@
 import reduct from 'reduct'
-import { Redis, BALANCE_KEY, RECEIPT_KEY } from './Redis'
+import { Redis, BALANCE_KEY, BALANCE_ID_KEY, RECEIPT_KEY } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import * as Long from 'long'
@@ -35,16 +35,46 @@ describe('Redis', () => {
     await redis.stop()
   })
 
-  describe('setReceiptTTL', () => {
+  describe('cacheReceiptNonce', () => {
     it('creates new key with expiry', async () => {
       const nonce = '123'
       const key = `${RECEIPT_KEY}:${nonce}`
       expect(await redis._redis.exists(key)).toBe(0)
-      await redis.setReceiptTTL(nonce)
+      await redis.cacheReceiptNonce(nonce)
       expect(await redis._redis.exists(key)).toBe(1)
       const ttl = await redis._redis.ttl(key)
       expect(ttl).toBeGreaterThan(0)
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
+    })
+
+    it('stores balance id', async () => {
+      const nonce = '123'
+      const balanceId = 'abc'
+      const key = `${RECEIPT_KEY}:${nonce}`
+      expect(await redis._redis.exists(key)).toBe(0)
+      await redis.cacheReceiptNonce(nonce, balanceId)
+      expect(await redis._redis.exists(key)).toBe(1)
+      const storedBalanceId = await redis._redis.hget(key, BALANCE_ID_KEY)
+      expect(storedBalanceId).toStrictEqual(balanceId)
+    })
+  })
+
+  describe('getReceiptBalanceId', () => {
+    it('returns stored balance id', async () => {
+      const nonce = '123'
+      const balanceId = 'abc'
+      const key = `${RECEIPT_KEY}:${nonce}`
+      await redis.cacheReceiptNonce(nonce, balanceId)
+      const storedBalanceId = await redis.getReceiptBalanceId(nonce)
+      expect(storedBalanceId).toStrictEqual(balanceId)
+    })
+
+    it('returns null for no balance id', async () => {
+      const nonce = '123'
+      const key = `${RECEIPT_KEY}:${nonce}`
+      await redis.cacheReceiptNonce(nonce)
+      const storedBalanceId = await redis.getReceiptBalanceId(nonce)
+      expect(storedBalanceId).toBeNull()
     })
   })
 
@@ -53,7 +83,7 @@ describe('Redis', () => {
     const streamId = '1'
 
     beforeEach(async () => {
-      await redis.setReceiptTTL(nonce.toString('base64'))
+      await redis.cacheReceiptNonce(nonce.toString('base64'))
     })
 
     afterAll(() => {

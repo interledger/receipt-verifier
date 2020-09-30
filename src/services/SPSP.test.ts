@@ -1,16 +1,27 @@
 import reduct from 'reduct'
 import fetch from 'node-fetch'
 import { createServer, Server } from 'http'
+import { AddressInfo } from 'net'
+import { Url } from 'url'
 import { SPSP } from './SPSP'
 import { Config } from './Config'
-import { Redis, RECEIPT_KEY } from './Redis'
+import { Redis, BALANCE_ID_KEY, RECEIPT_KEY } from './Redis'
 
 describe('SPSP', () => {
+  const balanceId = 'my-balance-id'
+  const NOT_FOUND = 'error'
+  const INVALID = 'invalid'
+  const PAYMENT_POINTER = 'paymentpointer'
   let spsp: SPSP
   let config: Config
   let redis: Redis
   let targetServer: Server
-  let nRequests = 0
+  let targetServerUrl: string
+  let spspEndpointsServer: Server
+  let spspEndpointsServerUrl: string
+  let nRequests: number
+
+  const OLD_ENV = process.env;
 
   beforeAll(async () => {
     targetServer = createServer((req, res) => {
@@ -21,7 +32,7 @@ describe('SPSP', () => {
       if (req.method === 'GET') {
         res.write(JSON.stringify({
           nonce: req.headers['receipt-nonce'],
-          receipts_enabled: nRequests !== 3
+          receipts_enabled: nRequests !== 4
         }))
       } else {
         res.writeHead(204)
@@ -29,10 +40,51 @@ describe('SPSP', () => {
       res.end()
     })
     targetServer.listen()
-    const address = targetServer.address()
-    if (address && typeof address === 'object') {
-      process.env.SPSP_ENDPOINT = `http://localhost:${address.port}`
-    }
+    targetServerUrl = `http://localhost:${(targetServer.address() as AddressInfo).port}`
+
+    spspEndpointsServer = createServer(async (req, res) => {
+      if (req.method === 'GET' && req.url) {
+        const id = decodeURIComponent(new URL(req.url, 'http://localhost').searchParams.get('id') as string)
+        switch (id) {
+          case NOT_FOUND:
+            res.writeHead(404)
+            break
+          case INVALID:
+            res.write(JSON.stringify({
+              missing: 'spspEndpoint field'
+            }))
+            break
+          case PAYMENT_POINTER:
+            res.write(JSON.stringify({
+              spspEndpoint: `$localhost:${(targetServer.address() as AddressInfo).port}`
+            }))
+            break
+          default:
+            res.write(JSON.stringify({
+              spspEndpoint: `http://localhost:${(targetServer.address() as AddressInfo).port}`,
+              balanceId: req.url === '/.well-known/pay' ? null : balanceId
+            }))
+        }
+      } else {
+        res.writeHead(404)
+      }
+      res.end()
+    })
+    spspEndpointsServer.listen()
+    spspEndpointsServerUrl = `http://localhost:${(spspEndpointsServer.address() as AddressInfo).port}`
+  })
+
+  afterAll(() => {
+    process.env = OLD_ENV
+    targetServer.close()
+    spspEndpointsServer.close()
+  })
+
+  afterEach(async () => {
+    await redis.flushdb()
+  })
+
+  async function startSPSPServer(): Promise<void> {
     const deps = reduct()
     spsp = deps(SPSP)
     config = deps(Config)
@@ -40,16 +92,29 @@ describe('SPSP', () => {
     redis.start()
     spsp.start()
     await redis.flushdb()
-  })
+  }
 
-  afterAll(async () => {
-    targetServer.close()
+  function stopSPSPServer(): void {
     spsp.stop()
-    await redis.flushdb()
     redis.stop()
-  })
+  }
 
-  describe('GET /.well-known/pay', () => {
+  describe.each([
+    ['SPSP_ENDPOINT', null],
+    ['SPSP_ENDPOINTS_URL', balanceId]
+  ])('GET /.well-known/pay %s', (envVar, expectedBalanceId) => {
+    beforeAll(async () => {
+      jest.resetModules()
+      process.env = { ...OLD_ENV }
+      process.env[envVar] = envVar === 'SPSP_ENDPOINT' ? targetServerUrl : spspEndpointsServerUrl
+      await startSPSPServer()
+      nRequests = 0
+    })
+
+    afterAll(() => {
+      stopSPSPServer()
+    })
+
     it('requires spsp4 header', async () => {
       const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
         headers: {
@@ -87,6 +152,18 @@ describe('SPSP', () => {
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
 
+    it('stores balance id to redis', async () => {
+      const resp = await fetch(`http://localhost:${config.spspProxyPort}/custom-path`, {
+        headers: {
+          Accept: 'application/spsp4+json'
+        }
+      })
+      expect(resp.status).toBe(200)
+      const body = await resp.json()
+      const storedBalanceId = await redis._redis.hget(`${RECEIPT_KEY}:${body.nonce}`, BALANCE_ID_KEY)
+      expect(storedBalanceId).toStrictEqual(expectedBalanceId)
+    })
+
     it('returns 409 if SPSP endpoint doesn\'t support receipts', async () => {
       const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
         headers: {
@@ -108,6 +185,39 @@ describe('SPSP', () => {
       expect(resp.headers.get('access-control-allow-origin')).toContain('*')
       expect(resp.headers.get('access-control-allow-headers')).toContain('web-monetization-id')
       expect(resp.headers.get('access-control-allow-methods')).toContain('GET')
+    })
+
+    it('returns 404 if SPSP endpoints url request fails', async () => {
+      if (envVar === 'SPSP_ENDPOINTS_URL') {
+        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${NOT_FOUND}`, {
+          headers: {
+            Accept: 'application/spsp4+json'
+          }
+        })
+        expect(resp.status).toBe(404)
+      }
+    })
+
+    it('returns 404 if SPSP endpoints url response is missing spspEndpoint field', async () => {
+      if (envVar === 'SPSP_ENDPOINTS_URL') {
+        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${INVALID}`, {
+          headers: {
+            Accept: 'application/spsp4+json'
+          }
+        })
+        expect(resp.status).toBe(404)
+      }
+    })
+
+    it('accepts payment pointer returned from SPSP endpoints url', async () => {
+      if (envVar === 'SPSP_ENDPOINTS_URL') {
+        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${PAYMENT_POINTER}`, {
+          headers: {
+            Accept: 'application/spsp4+json'
+          }
+        })
+        expect(resp.status).toBe(200)
+      }
     })
   })
 })
