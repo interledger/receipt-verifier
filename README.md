@@ -57,6 +57,8 @@ The response is expected to contain the following fields:
 | spspEndpoint | string | SPSP endpoint to proxy the SPSP query to |
 | balanceId    | string | (_Optional_) Balance to increment for receipts from this payment submitted to the [`POST /receipts`](#post-receipts) endpoint |
 
+* Example: if `SPSP_ENDPOINTS_URL=https://my-revshare.com`, an SPSP query to `https://my-receipt-verifier.com/users/alice` triggers a GET request to `https://my-revshare.com/?id=users%2Falice`. The receipt verifier proxies the SPSP query to the `spspEndpoint` in the response.
+
 #### SPSP_PROXY_PORT
 * Type: [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 * Description: The port that SPSP proxy will listen on.
