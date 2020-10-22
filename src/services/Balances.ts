@@ -95,15 +95,11 @@ export class Balances {
     })
 
     router.post('/receipts', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
-      const balanceId = await this.redis.getReceiptBalanceId(ctx.state.receipt.nonce.toString('base64'))
-      if (balanceId) {
-        try {
-          await this.redis.creditBalance(balanceId, ctx.state.receiptValue)
-        } catch (error) {
-          ctx.throw(409, error.message)
-        }
-      }
-      ctx.response.body = ctx.state.receiptValue.toString()
+      const spspEndpoint = await this.redis.getReceiptSPSPEndpoint(ctx.state.receipt.nonce.toString('base64'))
+      ctx.response.body = JSON.stringify({
+        amount: ctx.state.receiptValue.toString(),
+        spspEndpoint
+      })
       return ctx.status = 200
     })
 

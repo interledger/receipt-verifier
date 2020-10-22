@@ -28,7 +28,7 @@ describe('Balances', () => {
   })
 
   beforeEach(async () => {
-    await redis.cacheReceiptNonce(nonce.toString('base64'))
+    await redis.cacheReceiptNonce(nonce.toString('base64'), process.env.SPSP_ENDPOINT!)
   })
 
   afterEach(async () => {
@@ -284,7 +284,7 @@ describe('Balances', () => {
   })
 
   describe('POST /receipts', () => {
-    it('returns value of valid receipt', async () => {
+    it('returns value and SPSP endpoint of valid receipt', async () => {
       const amount = Long.fromNumber(10)
       const receipt = makeReceipt(amount, config.receiptSeed)
       const resp = await fetch(`http://localhost:${config.port}/receipts`, {
@@ -292,8 +292,9 @@ describe('Balances', () => {
         body: receipt
       })
       expect(resp.status).toBe(200)
-      const value = await resp.text()
-      expect(value).toStrictEqual(amount.toString())
+      const receiptResp = await resp.json()
+      expect(receiptResp.amount).toStrictEqual(amount.toString())
+      expect(receiptResp.spspEndpoint).toStrictEqual(process.env.SPSP_ENDPOINT)
     })
 
     it('returns additional value of subsequent receipt', async () => {
@@ -314,8 +315,8 @@ describe('Balances', () => {
         body: receipt2
       })
       expect(resp2.status).toBe(200)
-      const value = await resp2.text()
-      expect(value).toStrictEqual(amount2.subtract(amount1).toString())
+      const receiptResp = await resp2.json()
+      expect(receiptResp.amount).toStrictEqual(amount2.subtract(amount1).toString())
     })
 
     it('returns 400 for invalid receipt', async () => {
@@ -391,49 +392,6 @@ describe('Balances', () => {
       expect(resp.status).toBe(413)
       const error = await resp.text()
       expect(error).toBe('request entity too large')
-    })
-
-    it('credits balance of stored id', async () => {
-      const balanceId = '123'
-      await redis.cacheReceiptNonce(nonce.toString('base64'), balanceId)
-      const amount = Long.fromNumber(10)
-      const receipt = makeReceipt(amount, config.receiptSeed)
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
-        method: 'POST',
-        body: receipt
-      })
-      expect(resp.status).toBe(200)
-      const balance = await redis.getBalance(balanceId)
-      expect(balance).not.toBeNull()
-      if (balance) {
-        expect(balance.compare(amount)).toBe(0)
-      } else {
-        fail()
-      }
-    })
-
-    it('returns 409 for balance amount greater than max 64 bit signed integer', async () => {
-      const balanceId = '123'
-      await redis.cacheReceiptNonce(nonce.toString('base64'), balanceId)
-      const amount1 = Long.MAX_VALUE
-      const receipt1 = makeReceipt(amount1, config.receiptSeed)
-      const amount2 = Long.fromNumber(1)
-      const receipt2 = makeReceipt(amount2, config.receiptSeed, 2)
-
-      const resp1 = await fetch(`http://localhost:${config.port}/receipts`, {
-        method: 'POST',
-        body: receipt1
-      })
-      expect(resp1.status).toBe(200)
-
-      const resp2 = await fetch(`http://localhost:${config.port}/receipts`, {
-        method: 'POST',
-        body: receipt2
-      })
-      // ioredit-mock won't throw
-      expect(resp2.status).toBe(409)
-      const error = await resp2.text()
-      expect(error).toBe('balance cannot exceed max 64 bit signed integer')
     })
   })
 })

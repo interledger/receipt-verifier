@@ -49,12 +49,7 @@ Mutually exclusive with `SPSP_ENDPOINTS_URL`.
 * Description: URL used to fetch a receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which an SPSP query is proxied.
 Mutually exclusive with `SPSP_ENDPOINT`.
 For each SPSP query, a GET request is sent to `SPSP_ENDPOINTS_URL` with the query's url path value (without the preceding slash) as the URI encoded `id` query parameter.
-The response is expected to contain the following fields:
-
-| Field Name   | Type   | Description              |
-|--------------|--------|--------------------------|
-| spspEndpoint | string | SPSP endpoint to proxy the SPSP query to |
-| balanceId    | string | (_Optional_) Balance to increment for receipts from this payment submitted to the [`POST /receipts`](#post-receipts) endpoint |
+The response body is expected to be a string of the SPSP endpoint to proxy the SPSP query to.
 
 * Example: if `SPSP_ENDPOINTS_URL=https://my-revshare.com`, an SPSP query to `https://my-receipt-verifier.com/users/alice` triggers a GET request to `https://my-revshare.com/?id=users%2Falice`. The receipt verifier proxies the SPSP query to the `spspEndpoint` in the response.
 
@@ -107,5 +102,9 @@ Verifies receipt and returns decoded values
 * Description: base64-encoded STREAM receipt
 
 ##### Return Value:
-* Type: String
-* Description: Amount by which this receipt exceeds the previous receipt's `totalReceived`
+* Type: Object
+
+| Field Name   | Type   | Description              |
+|--------------|--------|--------------------------|
+| amount       | string | Amount by which this receipt exceeds the previously verified receipt's `totalReceived` |
+| spspEndpoint | string | SPSP endpoint to which the payment was sent |

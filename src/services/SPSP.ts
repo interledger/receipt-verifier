@@ -36,26 +36,16 @@ export class SPSP {
     this.server = createServer(async function(req: IncomingMessage, res: ServerResponse) {
       if (req.method === 'GET' && req.url && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
         let spspEndpoint = this.config.spspEndpoint
-        let balanceId: string
         if (this.config.spspEndpointsUrl) {
-          // Get payment pointer and balance id
           const id = encodeURIComponent(req.url.substring(1))
           const endpointsRes = await fetch(`${this.config.spspEndpointsUrl}?id=${id}`)
           if (endpointsRes.status !== 200) {
-            console.log(await endpointsRes.text())
+            console.error(await endpointsRes.text())
             res.statusCode = 404
             res.end()
             return
           }
-          const body = await endpointsRes.json()
-          if (!body.spspEndpoint) {
-            console.log('Invalid SPSP endpoints URL response:', JSON.stringify(body))
-            res.statusCode = 404
-            res.end()
-            return
-          }
-          spspEndpoint = body.spspEndpoint
-          balanceId = body.balanceId
+          spspEndpoint = await endpointsRes.text()
         }
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)
@@ -70,7 +60,7 @@ export class SPSP {
               const spspRes = JSON.parse(body.toString())
               if (spspRes.receipts_enabled) {
                 // should this strip 'receipts_enabled'?
-                await this.redis.cacheReceiptNonce(nonce.toString('base64'), balanceId)
+                await this.redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint)
                 res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
                 res.end(body)
               } else {

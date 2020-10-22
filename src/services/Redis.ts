@@ -19,8 +19,8 @@ interface CustomRedisMock extends ioredisMock {
 }
 
 export const BALANCE_KEY = 'ilpBalances'
-export const BALANCE_ID_KEY = 'balanceId'
 export const RECEIPT_KEY = 'ilpReceipts'
+export const SPSP_ENDPOINT_KEY = 'spspEndpoint'
 const TEMP_KEY = 'ilpTemp'
 
 export class Redis {
@@ -105,15 +105,15 @@ end
     await this.redis.flushdb()
   }
 
-  async cacheReceiptNonce (nonce: string, balanceId=''): Promise<void> {
+  async cacheReceiptNonce (nonce: string, spspEndpoint: string): Promise<void> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    await this.redis.hset(key, balanceId ? BALANCE_ID_KEY : 'dummy', balanceId)
+    await this.redis.hset(key, SPSP_ENDPOINT_KEY, spspEndpoint)
     await this.redis.expire(key, this.config.receiptTTLSeconds)
   }
 
-  async getReceiptBalanceId (nonce: string): Promise<string | null> {
+  async getReceiptSPSPEndpoint (nonce: string): Promise<string | null> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    return await this.redis.hget(key, BALANCE_ID_KEY)
+    return await this.redis.hget(key, SPSP_ENDPOINT_KEY)
   }
 
   async getReceiptValue (receipt: Receipt): Promise<Long> {
