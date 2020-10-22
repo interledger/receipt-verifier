@@ -1,5 +1,5 @@
 import reduct from 'reduct'
-import { Redis, BALANCE_KEY, BALANCE_ID_KEY, RECEIPT_KEY } from './Redis'
+import { Redis, BALANCE_KEY, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import * as Long from 'long'
@@ -36,54 +36,55 @@ describe('Redis', () => {
   })
 
   describe('cacheReceiptNonce', () => {
+    const spspEndpoint = 'http://localhost:3000'
+
     it('creates new key with expiry', async () => {
       const nonce = '123'
       const key = `${RECEIPT_KEY}:${nonce}`
       expect(await redis._redis.exists(key)).toBe(0)
-      await redis.cacheReceiptNonce(nonce)
+      await redis.cacheReceiptNonce(nonce, spspEndpoint)
       expect(await redis._redis.exists(key)).toBe(1)
       const ttl = await redis._redis.ttl(key)
       expect(ttl).toBeGreaterThan(0)
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
 
-    it('stores balance id', async () => {
+    it('stores SPSP endpoint', async () => {
       const nonce = '123'
-      const balanceId = 'abc'
       const key = `${RECEIPT_KEY}:${nonce}`
       expect(await redis._redis.exists(key)).toBe(0)
-      await redis.cacheReceiptNonce(nonce, balanceId)
+      await redis.cacheReceiptNonce(nonce, spspEndpoint)
       expect(await redis._redis.exists(key)).toBe(1)
-      const storedBalanceId = await redis._redis.hget(key, BALANCE_ID_KEY)
-      expect(storedBalanceId).toStrictEqual(balanceId)
+      const storedSPSPEndpoint = await redis._redis.hget(key, SPSP_ENDPOINT_KEY)
+      expect(storedSPSPEndpoint).toStrictEqual(spspEndpoint)
     })
   })
 
-  describe('getReceiptBalanceId', () => {
-    it('returns stored balance id', async () => {
+  describe('getReceiptSPSPEndpoint', () => {
+    const spspEndpoint = 'http://localhost:3000'
+
+    it('returns stored SPSP endpoint', async () => {
       const nonce = '123'
-      const balanceId = 'abc'
       const key = `${RECEIPT_KEY}:${nonce}`
-      await redis.cacheReceiptNonce(nonce, balanceId)
-      const storedBalanceId = await redis.getReceiptBalanceId(nonce)
-      expect(storedBalanceId).toStrictEqual(balanceId)
+      await redis.cacheReceiptNonce(nonce, spspEndpoint)
+      const storedSPSPEndpoint = await redis.getReceiptSPSPEndpoint(nonce)
+      expect(storedSPSPEndpoint).toStrictEqual(spspEndpoint)
     })
 
-    it('returns null for no balance id', async () => {
+    it('returns null for unknown receipt nonce', async () => {
       const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
-      await redis.cacheReceiptNonce(nonce)
-      const storedBalanceId = await redis.getReceiptBalanceId(nonce)
-      expect(storedBalanceId).toBeNull()
+      const storedSPSPEndpoint = await redis.getReceiptSPSPEndpoint(nonce)
+      expect(storedSPSPEndpoint).toBeNull()
     })
   })
 
   describe('getReceiptValue', () => {
     const nonce = Buffer.from('123', 'base64')
     const streamId = '1'
+    const spspEndpoint = 'http://localhost:3000'
 
     beforeEach(async () => {
-      await redis.cacheReceiptNonce(nonce.toString('base64'))
+      await redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint)
     })
 
     afterAll(() => {

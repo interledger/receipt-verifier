@@ -5,10 +5,9 @@ import { AddressInfo } from 'net'
 import { Url } from 'url'
 import { SPSP } from './SPSP'
 import { Config } from './Config'
-import { Redis, BALANCE_ID_KEY, RECEIPT_KEY } from './Redis'
+import { Redis, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from './Redis'
 
 describe('SPSP', () => {
-  const balanceId = 'my-balance-id'
   const NOT_FOUND = 'error'
   const INVALID = 'invalid'
   const PAYMENT_POINTER = 'paymentpointer'
@@ -50,20 +49,10 @@ describe('SPSP', () => {
             res.writeHead(404)
             break
           case INVALID:
-            res.write(JSON.stringify({
-              missing: 'spspEndpoint field'
-            }))
-            break
-          case PAYMENT_POINTER:
-            res.write(JSON.stringify({
-              spspEndpoint: `$localhost:${(targetServer.address() as AddressInfo).port}`
-            }))
+            res.writeHead(400)
             break
           default:
-            res.write(JSON.stringify({
-              spspEndpoint: `http://localhost:${(targetServer.address() as AddressInfo).port}`,
-              balanceId: req.url === '/.well-known/pay' ? null : balanceId
-            }))
+            res.write(`http://localhost:${(targetServer.address() as AddressInfo).port}`)
         }
       } else {
         res.writeHead(404)
@@ -100,9 +89,9 @@ describe('SPSP', () => {
   }
 
   describe.each([
-    ['SPSP_ENDPOINT', null],
-    ['SPSP_ENDPOINTS_URL', balanceId]
-  ])('GET /.well-known/pay %s', (envVar, expectedBalanceId) => {
+    ['SPSP_ENDPOINT'],
+    ['SPSP_ENDPOINTS_URL']
+  ])('GET /.well-known/pay %s', (envVar) => {
     beforeAll(async () => {
       jest.resetModules()
       process.env = { ...OLD_ENV }
@@ -152,7 +141,7 @@ describe('SPSP', () => {
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
 
-    it('stores balance id to redis', async () => {
+    it('stores SPSP endpoint to redis', async () => {
       const resp = await fetch(`http://localhost:${config.spspProxyPort}/custom-path`, {
         headers: {
           Accept: 'application/spsp4+json'
@@ -160,8 +149,8 @@ describe('SPSP', () => {
       })
       expect(resp.status).toBe(200)
       const body = await resp.json()
-      const storedBalanceId = await redis._redis.hget(`${RECEIPT_KEY}:${body.nonce}`, BALANCE_ID_KEY)
-      expect(storedBalanceId).toStrictEqual(expectedBalanceId)
+      const storedSPSPEndpoint = await redis._redis.hget(`${RECEIPT_KEY}:${body.nonce}`, SPSP_ENDPOINT_KEY)
+      expect(storedSPSPEndpoint).toStrictEqual(targetServerUrl)
     })
 
     it('returns 409 if SPSP endpoint doesn\'t support receipts', async () => {
