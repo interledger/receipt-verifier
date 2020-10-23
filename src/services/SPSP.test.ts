@@ -39,7 +39,7 @@ describe('SPSP', () => {
       res.end()
     })
     targetServer.listen()
-    targetServerUrl = `http://localhost:${(targetServer.address() as AddressInfo).port}`
+    targetServerUrl = `$localhost:${(targetServer.address() as AddressInfo).port}`
 
     spspEndpointsServer = createServer(async (req, res) => {
       if (req.method === 'GET' && req.url) {
@@ -52,7 +52,7 @@ describe('SPSP', () => {
             res.writeHead(400)
             break
           default:
-            res.write(`http://localhost:${(targetServer.address() as AddressInfo).port}`)
+            res.write(`$localhost:${(targetServer.address() as AddressInfo).port}`)
         }
       } else {
         res.writeHead(404)

@@ -12,6 +12,12 @@ describe('Config', () => {
       }
     })
 
+    it('accepts optional RECEIPT_SEED', () => {
+      process.env.RECEIPT_SEED = 'NeuPwFvsXwpp+1HzBLDzmfHZAW5Qrf3DR2NWEPwZmJg='
+      process.env.SPSP_ENDPOINT = 'http://localhost:3000'
+      reduct()(Config)
+    })
+
     it('disallows both SPSP_ENDPOINT and SPSP_ENDPOINTS_URL', () => {
       try {
         process.env.SPSP_ENDPOINT = 'http://localhost:3000'
