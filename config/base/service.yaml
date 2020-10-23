@@ -7,7 +7,7 @@ spec:
   selector:
     app: receipt-verifier
   ports:
-  - name: balances
+  - name: receipts
     protocol: TCP
     port: 3000
   - name: spsp-proxy

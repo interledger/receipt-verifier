@@ -2,14 +2,14 @@ import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
 import * as raw from 'raw-body'
-import { Balances, RECEIPT_LENGTH_BASE64 } from './Balances'
+import { Receipts, RECEIPT_LENGTH_BASE64 } from './Receipts'
 import { Config } from './Config'
 import { Redis } from './Redis'
 import { createReceipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
 
-describe('Balances', () => {
-  let balances: Balances
+describe('Receipts', () => {
+  let receipts: Receipts
   let config: Config
   let redis: Redis
 
@@ -19,11 +19,11 @@ describe('Balances', () => {
 
   beforeAll(async () => {
     const deps = reduct()
-    balances = deps(Balances)
+    receipts = deps(Receipts)
     config = deps(Config)
     redis = deps(Redis)
     redis.start()
-    balances.start()
+    receipts.start()
     await redis.flushdb()
   })
 
@@ -36,7 +36,7 @@ describe('Balances', () => {
   })
 
   afterAll(() => {
-    balances.stop()
+    receipts.stop()
     redis.stop()
   })
 

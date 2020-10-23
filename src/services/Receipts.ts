@@ -40,7 +40,7 @@ const verifyReceipt = (receiptSeed: Buffer, redis: Redis) => async (ctx: Koa.Con
   await next()
 }
 
-export class Balances {
+export class Receipts {
   private config: Config
   private redis: Redis
   private server: Server
@@ -68,7 +68,7 @@ export class Balances {
     koa.use(router.allowedMethods())
     this.server = koa.listen(this.config.port, () => {
       if (process.env.NODE_ENV !== 'test') {
-        console.log('Balances API listening on port: ' + this.config.port)
+        console.log('Receipts API listening on port: ' + this.config.port)
       }
     })
   }
