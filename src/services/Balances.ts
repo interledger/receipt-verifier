@@ -54,46 +54,6 @@ export class Balances {
     const koa = new Koa()
     const router = new Router()
 
-    router.get('/balances/:id', async (ctx: Koa.Context) => {
-      const balance = await this.redis.getBalance(ctx.params.id)
-      if (balance) {
-        ctx.response.body = balance.toString()
-        return ctx.status = 200
-      } else {
-        ctx.throw(404)
-      }
-    })
-
-    router.post('/balances/:id\\:creditReceipt', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
-      try {
-        const balance = await this.redis.creditBalance(ctx.params.id, ctx.state.receiptValue)
-        ctx.response.body = balance.toString()
-        return ctx.status = 200
-      } catch (error) {
-        ctx.throw(409, error.message)
-      }
-    })
-
-    router.post('/balances/:id\\:spend', async (ctx: Koa.Context) => {
-      const body = await raw(ctx.req, {
-        limit: Long.MAX_VALUE.toString().length
-      })
-
-      const amount = Long.fromString(body.toString(), true)
-
-      try {
-        const balance = await this.redis.spendBalance(ctx.params.id, amount)
-        ctx.response.body = balance.toString()
-        return ctx.status = 200
-      } catch (error) {
-        // 404 for unknown balance
-        if (error.message === 'balance does not exist') {
-          ctx.throw(404, error.message)
-        }
-        ctx.throw(409, error.message)
-      }
-    })
-
     router.post('/receipts', verifyReceipt(this.config.receiptSeed, this.redis), async (ctx: Koa.Context) => {
       const spspEndpoint = await this.redis.getReceiptSPSPEndpoint(ctx.state.receipt.nonce.toString('base64'))
       ctx.response.body = JSON.stringify({

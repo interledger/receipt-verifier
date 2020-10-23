@@ -10,9 +10,8 @@ The **Receipt Verifier**:
 
 1. pre-shares a secret key with the receiving wallet for generating receipts, by acting as a proxy for SPSP queries to the recipient's payment pointer
 2. verifies receipts
-3. tracks balances where receipt amounts are credited
 
-For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-monetization/0028-web-monetization.md), website visitors submit receipts to the website in `monetizationprogress` events. The website backend can send receipts to the **Receipt Verifier** to credit the balance for the particular Monetization ID and can subsequently spend against the Monetization ID balance as desired to confirm the payment.
+For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-monetization/0028-web-monetization.md), website visitors submit receipts to the website in `monetizationprogress` events. The website backend can send receipts to the **Receipt Verifier** to confirm the payment.
 
 ### Run
 
@@ -64,35 +63,6 @@ The response body is expected to be a string of the SPSP endpoint to proxy the S
 * Default: 3000
 
 ### API Documentation
-
-#### `GET /balances/{ID}`
-Retrieves the specified balance
-
-##### Return Value:
-* Type: String
-* Description: balance for `ID`
-
-#### `POST /balances/{ID}:creditReceipt`
-Verifies receipt and credits the receipt value to the specified balance
-
-##### Request Body:
-* Type: String
-* Description: base64-encoded STREAM receipt
-
-##### Return Value:
-* Type: String
-* Description: updated balance for `ID`
-
-#### `POST /balances/{ID}:spend`
-Debits an amount from the specified balance if the balance is sufficient
-
-##### Request Body:
-* Type: String
-* Description: amount to debit the balance
-
-##### Return Value:
-* Type: String
-* Description: updated balance for `ID`
 
 #### `POST /receipts`
 Verifies receipt and returns decoded values
