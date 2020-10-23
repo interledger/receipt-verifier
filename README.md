@@ -18,6 +18,7 @@ For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-
 
 ```
 npm install
+npm run-script build
 sudo docker run -p 6379:6379 -d redis
 SPSP_ENDPOINT=https://receiver-endpoint.com npm start
 ```
