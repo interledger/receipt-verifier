@@ -13,6 +13,8 @@ The **Receipt Verifier**:
 
 SPSP queries are proxied to the URL encoded [payment pointer](https://paymentpointers.org/) or [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) in the path of the SPSP request URL (unless [`SPSP_ENDPOINTS_URL`](#spsp_endpoints_url) is configured).
 
+* Example: An SPSP query to `https://my-receipt-verifier.com/%24wallet.com%2Falice` (or `https://my-receipt-verifier.com/https%3A%2F%2Fwallet.com%2Falice`) is proxied by the **Receipt Verifier** to `$wallet.com/alice` (`https://wallet.com/alice`).
+
 For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-monetization/0028-web-monetization.md), website visitors submit receipts to the website in `monetizationprogress` events. The website backend can send receipts to the **Receipt Verifier** to confirm the payment.
 
 ### Run
