@@ -35,7 +35,7 @@ export class SPSP {
     })
     this.server = createServer(async function(req: IncomingMessage, res: ServerResponse) {
       if (req.method === 'GET' && req.url && req.headers.accept && req.headers.accept.indexOf('application/spsp4+json') !== -1) {
-        let spspEndpoint = this.config.spspEndpoint
+        let spspEndpoint: string
         if (this.config.spspEndpointsUrl) {
           const id = encodeURIComponent(req.url.substring(1))
           const endpointsRes = await fetch(`${this.config.spspEndpointsUrl}?id=${id}`)
@@ -46,6 +46,8 @@ export class SPSP {
             return
           }
           spspEndpoint = await endpointsRes.text()
+        } else {
+          spspEndpoint = decodeURIComponent(req.url.substring(1))
         }
         const nonce = randomBytes(16)
         const secret = generateReceiptSecret(this.config.receiptSeed, nonce)

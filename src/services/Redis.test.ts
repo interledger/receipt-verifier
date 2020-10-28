@@ -8,8 +8,6 @@ describe('Redis', () => {
   let config: Config
   let redis: Redis
 
-  process.env.SPSP_ENDPOINT = 'http://localhost:3000'
-
   beforeAll(async () => {
     const deps = reduct()
     config = deps(Config)

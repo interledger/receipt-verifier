@@ -14,8 +14,7 @@ describe('Receipts', () => {
   let redis: Redis
 
   const nonce = Buffer.alloc(16)
-
-  process.env.SPSP_ENDPOINT = 'http://localhost:3000'
+  const spspEndpoint = 'http://localhost:3000'
 
   beforeAll(async () => {
     const deps = reduct()
@@ -28,7 +27,7 @@ describe('Receipts', () => {
   })
 
   beforeEach(async () => {
-    await redis.cacheReceiptNonce(nonce.toString('base64'), process.env.SPSP_ENDPOINT!)
+    await redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint)
   })
 
   afterEach(async () => {
@@ -60,7 +59,7 @@ describe('Receipts', () => {
       expect(resp.status).toBe(200)
       const receiptResp = await resp.json()
       expect(receiptResp.amount).toStrictEqual(amount.toString())
-      expect(receiptResp.spspEndpoint).toStrictEqual(process.env.SPSP_ENDPOINT)
+      expect(receiptResp.spspEndpoint).toStrictEqual(spspEndpoint)
     })
 
     it('returns additional value of subsequent receipt', async () => {

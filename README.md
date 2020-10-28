@@ -11,6 +11,8 @@ The **Receipt Verifier**:
 1. pre-shares a secret key with the receiving wallet for generating receipts, by acting as a proxy for SPSP queries to the recipient's payment pointer
 2. verifies receipts
 
+SPSP queries are proxied to the URL encoded [payment pointer](https://paymentpointers.org/) or [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) in the path of the SPSP request URL (unless [`SPSP_ENDPOINTS_URL`](#spsp_endpoints_url) is configured).
+
 For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-monetization/0028-web-monetization.md), website visitors submit receipts to the website in `monetizationprogress` events. The website backend can send receipts to the **Receipt Verifier** to confirm the payment.
 
 ### Run
@@ -18,7 +20,7 @@ For [Web Monetization](https://github.com/interledger/rfcs/blob/master/0028-web-
 ```
 npm install
 sudo docker run -p 6379:6379 -d redis
-SPSP_ENDPOINT=https://receiver-endpoint.com npm start
+npm start
 ```
 
 ### Environment Variables
@@ -38,15 +40,9 @@ SPSP_ENDPOINT=https://receiver-endpoint.com npm start
 * Description: The URI at which to connect to Redis. Use `mock` for [in-memory Redis](https://www.npmjs.com/package/ioredis-mock) (NOT RECOMMENDED for production)
 * Default: redis://127.0.0.1:6379/
 
-#### SPSP_ENDPOINT
-* Type: String
-* Description: The receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which SPSP queries are proxied.
-Mutually exclusive with `SPSP_ENDPOINTS_URL`.
-
 #### SPSP_ENDPOINTS_URL
 * Type: String
 * Description: URL used to fetch a receiver's [SPSP endpoint](https://interledger.org/rfcs/0009-simple-payment-setup-protocol/) to which an SPSP query is proxied.
-Mutually exclusive with `SPSP_ENDPOINT`.
 For each SPSP query, a GET request is sent to `SPSP_ENDPOINTS_URL` with the query's url path value (without the preceding slash) as the URI encoded `id` query parameter.
 The response body is expected to be a string of the SPSP endpoint to proxy the SPSP query to.
 

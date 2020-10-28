@@ -89,14 +89,19 @@ describe('SPSP', () => {
   }
 
   describe.each([
-    ['SPSP_ENDPOINT'],
+    [''],
     ['SPSP_ENDPOINTS_URL']
-  ])('GET /.well-known/pay %s', (envVar) => {
+  ])('GET / %s', (envVar) => {
+    let spspProxyUrl: string
+
     beforeAll(async () => {
       jest.resetModules()
       process.env = { ...OLD_ENV }
-      process.env[envVar] = envVar === 'SPSP_ENDPOINT' ? targetServerUrl : spspEndpointsServerUrl
+      if (envVar === 'SPSP_ENDPOINTS_URL') {
+        process.env[envVar] = spspEndpointsServerUrl
+      }
       await startSPSPServer()
+      spspProxyUrl = `http://localhost:${config.spspProxyPort}/${envVar === 'SPSP_ENDPOINTS_URL' ? '.well-known/pay' : encodeURIComponent(targetServerUrl)}`
       nRequests = 0
     })
 
@@ -105,7 +110,7 @@ describe('SPSP', () => {
     })
 
     it('requires spsp4 header', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+      const resp = await fetch(spspProxyUrl, {
         headers: {
           Accept: 'application/json'
         }
@@ -115,7 +120,7 @@ describe('SPSP', () => {
     })
 
     it('proxies request to specified SPSP endpoint', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+      const resp = await fetch(spspProxyUrl, {
         headers: {
           Accept: 'application/spsp4+json'
         }
@@ -129,7 +134,7 @@ describe('SPSP', () => {
     })
 
     it('stores receipt nonce with expiration to redis', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+      const resp = await fetch(spspProxyUrl, {
         headers: {
           Accept: 'application/spsp4+json'
         }
@@ -142,7 +147,8 @@ describe('SPSP', () => {
     })
 
     it('stores SPSP endpoint to redis', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/custom-path`, {
+      const url = envVar === 'SPSP_ENDPOINTS_URL' ? `http://localhost:${config.spspProxyPort}/custom-path` : spspProxyUrl
+      const resp = await fetch(url, {
         headers: {
           Accept: 'application/spsp4+json'
         }
@@ -154,7 +160,7 @@ describe('SPSP', () => {
     })
 
     it('returns 409 if SPSP endpoint doesn\'t support receipts', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+      const resp = await fetch(spspProxyUrl, {
         headers: {
           Accept: 'application/spsp4+json'
         }
@@ -163,7 +169,7 @@ describe('SPSP', () => {
     })
 
     it('proxies preflight request to specified SPSP endpoint', async () => {
-      const resp = await fetch(`http://localhost:${config.spspProxyPort}/.well-known/pay`, {
+      const resp = await fetch(spspProxyUrl, {
         method: 'OPTIONS',
         headers: {
           'Access-Control-Request-Headers': 'origin, x-requested-with',

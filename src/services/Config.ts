@@ -5,7 +5,7 @@ export class Config {
   readonly port: number
   readonly spspProxyPort: number
   readonly spspEndpoint: string
-  readonly spspEndpointsUrl: string
+  readonly spspEndpointsUrl: string | undefined
   readonly receiptSeed: Buffer
   readonly receiptTTLSeconds: number
   readonly redisUri: string
@@ -19,15 +19,8 @@ export class Config {
     this.spspProxyPort = Number(env.SPSP_PROXY_PORT) || 3001
     this.receiptSeed = env.RECEIPT_SEED ? Buffer.from(env.RECEIPT_SEED, 'base64') : randomBytes(32)
     this.receiptTTLSeconds = Number(env.RECEIPT_TTL) || 300
-    if (env.SPSP_ENDPOINT) {
-      if (env.SPSP_ENDPOINTS_URL) {
-        throw new Error('SPSP_ENDPOINT and SPSP_ENDPOINTS_URL are mutually exclusive')
-      }
-      this.spspEndpoint = env.SPSP_ENDPOINT
-    } else if (env.SPSP_ENDPOINTS_URL) {
+    if (env.SPSP_ENDPOINTS_URL) {
       this.spspEndpointsUrl = env.SPSP_ENDPOINTS_URL
-    } else {
-      throw new Error('receipt-verifier requires SPSP_ENDPOINT or SPSP_ENDPOINTS_URL to be set')
     }
     this.redisUri = env.REDIS_URI || 'redis://127.0.0.1:6379/'
   }
