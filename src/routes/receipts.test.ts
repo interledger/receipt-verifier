@@ -49,11 +49,11 @@ describe('receipts router', () => {
     }).toString('base64')
   }
 
-  describe('POST /receipts', () => {
+  describe('POST /verifyReceipt', () => {
     it('returns value and SPSP endpoint of valid receipt', async () => {
       const amount = Long.fromNumber(10)
       const receipt = makeReceipt(amount, config.receiptSeed)
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt
       })
@@ -70,13 +70,13 @@ describe('receipts router', () => {
       const amount2 = Long.fromNumber(15)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
 
-      const resp1 = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp1 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt1
       })
       expect(resp1.status).toBe(200)
 
-      const resp2 = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp2 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt2
       })
@@ -90,7 +90,7 @@ describe('receipts router', () => {
       const amount = Long.fromNumber(10)
       const badSeed = Buffer.alloc(32)
       const receipt = makeReceipt(amount, badSeed)
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt
       })
@@ -104,7 +104,7 @@ describe('receipts router', () => {
       const amount = Long.fromNumber(10)
       const expiredNonce = randomBytes(16)
       const receipt = makeReceipt(amount, config.receiptSeed, 1, expiredNonce)
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt
       })
@@ -120,13 +120,13 @@ describe('receipts router', () => {
       const amount2 = Long.fromNumber(10)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
 
-      const resp1 = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp1 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt1
       })
       expect(resp1.status).toBe(200)
 
-      const resp2 = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp2 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt2
       })
@@ -139,7 +139,7 @@ describe('receipts router', () => {
       const id = 'id'
       const amount = Long.MAX_VALUE.toUnsigned().add(1)
       const receipt = makeReceipt(amount, config.receiptSeed)
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt
       })
@@ -151,7 +151,7 @@ describe('receipts router', () => {
     it('returns 413 for body with length greater than RECEIPT_LENGTH_BASE64', async () => {
       const id = 'id'
       const receipt = Buffer.alloc(RECEIPT_LENGTH_BASE64+1).toString()
-      const resp = await fetch(`http://localhost:${config.port}/receipts`, {
+      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
         method: 'POST',
         body: receipt
       })
