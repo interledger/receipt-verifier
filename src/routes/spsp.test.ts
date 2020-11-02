@@ -1,22 +1,22 @@
 import reduct from 'reduct'
 import fetch from 'node-fetch'
-import { createServer, Server } from 'http'
+import { createServer, Server as HttpServer } from 'http'
 import { AddressInfo } from 'net'
 import { Url } from 'url'
-import { SPSP } from './SPSP'
-import { Config } from './Config'
-import { Redis, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from './Redis'
+import { Config } from '../services/Config'
+import { Redis, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from '../services/Redis'
+import { Server } from '../services/Server'
 
-describe('SPSP', () => {
+describe('SPSP router', () => {
   const NOT_FOUND = 'error'
   const INVALID = 'invalid'
   const PAYMENT_POINTER = 'paymentpointer'
-  let spsp: SPSP
   let config: Config
   let redis: Redis
-  let targetServer: Server
+  let server: Server
+  let targetServer: HttpServer
   let targetServerUrl: string
-  let spspEndpointsServer: Server
+  let spspEndpointsServer: HttpServer
   let spspEndpointsServerUrl: string
   let nRequests: number
 
@@ -75,17 +75,12 @@ describe('SPSP', () => {
 
   async function startSPSPServer(): Promise<void> {
     const deps = reduct()
-    spsp = deps(SPSP)
     config = deps(Config)
     redis = deps(Redis)
+    server = deps(Server)
     redis.start()
-    spsp.start()
+    server.start()
     await redis.flushdb()
-  }
-
-  function stopSPSPServer(): void {
-    spsp.stop()
-    redis.stop()
   }
 
   describe.each([
@@ -101,12 +96,13 @@ describe('SPSP', () => {
         process.env[envVar] = spspEndpointsServerUrl
       }
       await startSPSPServer()
-      spspProxyUrl = `http://localhost:${config.spspProxyPort}/${envVar === 'SPSP_ENDPOINTS_URL' ? '.well-known/pay' : encodeURIComponent(targetServerUrl)}`
+      spspProxyUrl = `http://localhost:${config.port}/${envVar === 'SPSP_ENDPOINTS_URL' ? '.well-known/pay' : encodeURIComponent(targetServerUrl)}`
       nRequests = 0
     })
 
-    afterAll(() => {
-      stopSPSPServer()
+    afterAll(async () => {
+      await server.stop()
+      await redis.stop()
     })
 
     it('requires spsp4 header', async () => {
@@ -147,7 +143,7 @@ describe('SPSP', () => {
     })
 
     it('stores SPSP endpoint to redis', async () => {
-      const url = envVar === 'SPSP_ENDPOINTS_URL' ? `http://localhost:${config.spspProxyPort}/custom-path` : spspProxyUrl
+      const url = envVar === 'SPSP_ENDPOINTS_URL' ? `http://localhost:${config.port}/custom-path` : spspProxyUrl
       const resp = await fetch(url, {
         headers: {
           Accept: 'application/spsp4+json'
@@ -169,22 +165,24 @@ describe('SPSP', () => {
     })
 
     it('proxies preflight request to specified SPSP endpoint', async () => {
+      const origin = 'https://sender-origin.com'
       const resp = await fetch(spspProxyUrl, {
         method: 'OPTIONS',
         headers: {
+          'Origin': origin,
           'Access-Control-Request-Headers': 'origin, x-requested-with',
           'Access-Control-Request-Method': 'GET'
         }
       })
       expect(resp.status).toBe(204)
-      expect(resp.headers.get('access-control-allow-origin')).toContain('*')
+      expect(resp.headers.get('access-control-allow-origin')).toContain(origin)
       expect(resp.headers.get('access-control-allow-headers')).toContain('web-monetization-id')
       expect(resp.headers.get('access-control-allow-methods')).toContain('GET')
     })
 
     it('returns 404 if SPSP endpoints url request fails', async () => {
       if (envVar === 'SPSP_ENDPOINTS_URL') {
-        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${NOT_FOUND}`, {
+        const resp = await fetch(`http://localhost:${config.port}/${NOT_FOUND}`, {
           headers: {
             Accept: 'application/spsp4+json'
           }
@@ -195,7 +193,7 @@ describe('SPSP', () => {
 
     it('returns 404 if SPSP endpoints url response is missing spspEndpoint field', async () => {
       if (envVar === 'SPSP_ENDPOINTS_URL') {
-        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${INVALID}`, {
+        const resp = await fetch(`http://localhost:${config.port}/${INVALID}`, {
           headers: {
             Accept: 'application/spsp4+json'
           }
@@ -206,7 +204,7 @@ describe('SPSP', () => {
 
     it('accepts payment pointer returned from SPSP endpoints url', async () => {
       if (envVar === 'SPSP_ENDPOINTS_URL') {
-        const resp = await fetch(`http://localhost:${config.spspProxyPort}/${PAYMENT_POINTER}`, {
+        const resp = await fetch(`http://localhost:${config.port}/${PAYMENT_POINTER}`, {
           headers: {
             Accept: 'application/spsp4+json'
           }

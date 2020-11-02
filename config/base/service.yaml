@@ -7,9 +7,4 @@ spec:
   selector:
     app: receipt-verifier
   ports:
-  - name: receipts
-    protocol: TCP
-    port: 3000
-  - name: spsp-proxy
-    protocol: TCP
-    port: 3001
+  - port: 3000

@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "jest"
+    "test": "jest --runInBand"
   },
   "author": "Brandon Wilson <brandon@coil.com>",
   "license": "Apache-2.0",

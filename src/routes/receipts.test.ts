@@ -2,27 +2,28 @@ import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
 import * as raw from 'raw-body'
-import { Receipts, RECEIPT_LENGTH_BASE64 } from './Receipts'
-import { Config } from './Config'
-import { Redis } from './Redis'
+import { RECEIPT_LENGTH_BASE64 } from './receipts'
+import { Config } from '../services/Config'
+import { Redis } from '../services/Redis'
+import { Server } from '../services/Server'
 import { createReceipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
 
-describe('Receipts', () => {
-  let receipts: Receipts
+describe('receipts router', () => {
   let config: Config
   let redis: Redis
+  let server: Server
 
   const nonce = Buffer.alloc(16)
   const spspEndpoint = 'http://localhost:3000'
 
   beforeAll(async () => {
     const deps = reduct()
-    receipts = deps(Receipts)
     config = deps(Config)
     redis = deps(Redis)
+    server = deps(Server)
     redis.start()
-    receipts.start()
+    server.start()
     await redis.flushdb()
   })
 
@@ -34,9 +35,9 @@ describe('Receipts', () => {
     await redis.flushdb()
   })
 
-  afterAll(() => {
-    receipts.stop()
-    redis.stop()
+  afterAll(async () => {
+    await server.stop()
+    await redis.stop()
   })
 
   function makeReceipt(amount: Long, seed: Buffer, streamId = 1, receiptNonce = nonce): string {

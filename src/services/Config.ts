@@ -3,7 +3,6 @@ import { randomBytes } from 'crypto'
 
 export class Config {
   readonly port: number
-  readonly spspProxyPort: number
   readonly spspEndpoint: string
   readonly spspEndpointsUrl: string | undefined
   readonly receiptSeed: Buffer
@@ -15,8 +14,7 @@ export class Config {
     if (typeof env === 'function') {
       env = process.env
     }
-    this.port = Number(env.VERIFIER_PORT) || 3000
-    this.spspProxyPort = Number(env.SPSP_PROXY_PORT) || 3001
+    this.port = Number(env.PORT) || 3000
     this.receiptSeed = env.RECEIPT_SEED ? Buffer.from(env.RECEIPT_SEED, 'base64') : randomBytes(32)
     this.receiptTTLSeconds = Number(env.RECEIPT_TTL) || 300
     if (env.SPSP_ENDPOINTS_URL) {
