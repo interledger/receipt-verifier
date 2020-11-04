@@ -37,7 +37,7 @@ router.get('/(.*)', async (ctx: Koa.Context) => {
     }
     const nonce = randomBytes(16)
     const secret = generateReceiptSecret(ctx.config.receiptSeed, nonce)
-    ctx.proxyServer.once('proxyRes', function (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) {
+    ctx.proxyServer.once('proxyRes', (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) => {
       const chunks: Buffer[] = []
       proxyRes.on('data', chunk => {
         chunks.push(chunk)
@@ -61,7 +61,7 @@ router.get('/(.*)', async (ctx: Koa.Context) => {
           res.end()
         }
       })
-    }.bind(this))
+    })
     ctx.respond = false
     ctx.proxyServer.web(ctx.req, ctx.res, {
       headers: {
