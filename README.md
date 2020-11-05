@@ -61,7 +61,7 @@ If [`SPSP_ENDPOINTS_URL`](#spsp_endpoints_url) is configured, the request is pro
 Otherwise, the SPSP query is proxied to the URL encoded [payment pointer](https://paymentpointers.org/) or SPSP endpoint in the path of the SPSP request URL.
 * Example: `GET /%24wallet.com` (or `GET /https%3A%2F%2Fwallet.com%2F.well-known%2Fpay`) is proxied to `$wallet.com` (`https://wallet.com/.well-known/pay`).
 
-#### `POST /verifyReceipt`
+#### `POST /verify`
 Verifies receipt and returns value
 
 ##### Request Body:

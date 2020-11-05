@@ -6,7 +6,7 @@ import * as cors from '@koa/cors'
 import * as Router from 'koa-router'
 import { Redis } from './Redis'
 import { Config } from './Config'
-import { router as receiptsRouter } from '../routes/receipts'
+import { router as verifyRouter } from '../routes/verify'
 import { router as spspRouter } from '../routes/spsp'
 
 export class Server {
@@ -35,8 +35,8 @@ export class Server {
       allowHeaders: ['web-monetization-id']
     }))
 
-    koa.use(receiptsRouter.routes())
-    koa.use(receiptsRouter.allowedMethods())
+    koa.use(verifyRouter.routes())
+    koa.use(verifyRouter.allowedMethods())
     koa.use(spspRouter.routes())
     koa.use(spspRouter.allowedMethods())
 

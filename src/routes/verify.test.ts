@@ -2,14 +2,14 @@ import reduct from 'reduct'
 import fetch from 'node-fetch'
 import * as Long from 'long'
 import * as raw from 'raw-body'
-import { RECEIPT_LENGTH_BASE64 } from './receipts'
+import { RECEIPT_LENGTH_BASE64 } from './verify'
 import { Config } from '../services/Config'
 import { Redis } from '../services/Redis'
 import { Server } from '../services/Server'
 import { createReceipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import { generateReceiptSecret, hmac, randomBytes } from '../util/crypto'
 
-describe('receipts router', () => {
+describe('verify router', () => {
   let config: Config
   let redis: Redis
   let server: Server
@@ -49,11 +49,11 @@ describe('receipts router', () => {
     }).toString('base64')
   }
 
-  describe('POST /verifyReceipt', () => {
+  describe('POST /verify', () => {
     it('returns value and SPSP endpoint of valid receipt', async () => {
       const amount = Long.fromNumber(10)
       const receipt = makeReceipt(amount, config.receiptSeed)
-      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt
       })
@@ -70,13 +70,13 @@ describe('receipts router', () => {
       const amount2 = Long.fromNumber(15)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
 
-      const resp1 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp1 = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt1
       })
       expect(resp1.status).toBe(200)
 
-      const resp2 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp2 = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt2
       })
@@ -90,7 +90,7 @@ describe('receipts router', () => {
       const amount = Long.fromNumber(10)
       const badSeed = Buffer.alloc(32)
       const receipt = makeReceipt(amount, badSeed)
-      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt
       })
@@ -104,7 +104,7 @@ describe('receipts router', () => {
       const amount = Long.fromNumber(10)
       const expiredNonce = randomBytes(16)
       const receipt = makeReceipt(amount, config.receiptSeed, 1, expiredNonce)
-      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt
       })
@@ -120,13 +120,13 @@ describe('receipts router', () => {
       const amount2 = Long.fromNumber(10)
       const receipt2 = makeReceipt(amount2, config.receiptSeed)
 
-      const resp1 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp1 = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt1
       })
       expect(resp1.status).toBe(200)
 
-      const resp2 = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp2 = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt2
       })
@@ -139,7 +139,7 @@ describe('receipts router', () => {
       const id = 'id'
       const amount = Long.MAX_VALUE.toUnsigned().add(1)
       const receipt = makeReceipt(amount, config.receiptSeed)
-      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt
       })
@@ -151,7 +151,7 @@ describe('receipts router', () => {
     it('returns 413 for body with length greater than RECEIPT_LENGTH_BASE64', async () => {
       const id = 'id'
       const receipt = Buffer.alloc(RECEIPT_LENGTH_BASE64+1).toString()
-      const resp = await fetch(`http://localhost:${config.port}/verifyReceipt`, {
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
         method: 'POST',
         body: receipt
       })
