@@ -2,6 +2,7 @@ import { randomBytes, generateReceiptSecret } from '../util/crypto'
 import { IncomingMessage, ServerResponse } from 'http'
 import fetch from 'node-fetch'
 import * as Koa from 'koa'
+import * as proxy from 'koa-better-http-proxy'
 import * as Router from 'koa-router'
 import * as url from 'url'
 
@@ -19,11 +20,8 @@ function resolvePointer (pointer: string): string {
   return url.href
 }
 
-export const router = new Router()
-
-router.get('/(.*)', async (ctx: Koa.Context) => {
+const spspProxySetup = () => async (ctx: Koa.Context, next: Koa.Next) => {
   if (ctx.accepts('application/spsp4+json') && ctx.req.url) {
-    let spspEndpoint: string
     if (ctx.config.spspEndpointsUrl) {
       const id = encodeURIComponent(ctx.req.url.substring(1))
       const endpointsRes = await fetch(`${ctx.config.spspEndpointsUrl}?id=${id}`)
@@ -31,46 +29,42 @@ router.get('/(.*)', async (ctx: Koa.Context) => {
         console.error(await endpointsRes.text())
         ctx.throw(404)
       }
-      spspEndpoint = await endpointsRes.text()
+      ctx.state.spspEndpoint = await endpointsRes.text()
     } else {
-      spspEndpoint = decodeURIComponent(ctx.req.url.substring(1))
+      ctx.state.spspEndpoint = decodeURIComponent(ctx.req.url.substring(1))
     }
-    const nonce = randomBytes(16)
-    const secret = generateReceiptSecret(ctx.config.receiptSeed, nonce)
-    ctx.proxyServer.once('proxyRes', (proxyRes: IncomingMessage, req: IncomingMessage, res: ServerResponse) => {
-      const chunks: Buffer[] = []
-      proxyRes.on('data', chunk => {
-        chunks.push(chunk)
-      })
-      proxyRes.once('end', async () => {
-        ctx.respond = true
-        const body = Buffer.concat(chunks)
-        try {
-          const spspRes = JSON.parse(body.toString())
-          if (spspRes.receipts_enabled) {
-            // should this strip 'receipts_enabled'?
-            await ctx.redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint)
-            res.writeHead(proxyRes.statusCode || 200, proxyRes.headers)
-            res.end(body)
-          } else {
-            res.statusCode = 409
-            res.end()
-          }
-        } catch (err) {
-          res.statusCode = 409
-          res.end()
-        }
-      })
-    })
-    ctx.respond = false
-    ctx.proxyServer.web(ctx.req, ctx.res, {
-      headers: {
-        'Receipt-Nonce': nonce.toString('base64'),
-        'Receipt-Secret': secret.toString('base64')
-      },
-      ignorePath: true,
-      selfHandleResponse: true,
-      target: resolvePointer(spspEndpoint)
-    })
+    ctx.state.nonce = randomBytes(16)
+    await next()
   }
-})
+}
+
+export const router = new Router()
+
+router.get('/(.*)',
+  spspProxySetup(),
+  proxy(
+    // koa-better-http-proxy typings don't include supported function type for url
+    // https://github.com/nsimmons/koa-better-http-proxy/issues/2
+    // @ts-ignore
+    (ctx: Koa.Context) => resolvePointer(ctx.state.spspEndpoint),
+    {
+      proxyReqOptDecorator: async (proxyReqOpts: proxy.IRequestOption, ctx: Koa.Context) => {
+        proxyReqOpts.headers['Receipt-Nonce'] = ctx.state.nonce.toString('base64')
+        proxyReqOpts.headers['Receipt-Secret'] = generateReceiptSecret(ctx.config.receiptSeed, ctx.state.nonce).toString('base64')
+
+        return proxyReqOpts
+      },
+      proxyReqPathResolver: (ctx: Koa.Context) => {
+        return new URL(resolvePointer(ctx.state.spspEndpoint)).pathname
+      },
+      userResDecorator: async (proxyRes: IncomingMessage, proxyResData: Buffer, ctx: Koa.Context) => {
+        const data = JSON.parse(proxyResData.toString())
+        if (!data.receipts_enabled) {
+          ctx.throw(409)
+        }
+        await ctx.redis.cacheReceiptNonce(ctx.state.nonce.toString('base64'), ctx.state.spspEndpoint)
+        return proxyResData as Buffer
+      }
+    }
+  )
+)

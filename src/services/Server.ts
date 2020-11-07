@@ -1,6 +1,5 @@
 import { Injector } from 'reduct'
 import { Server as HttpServer } from 'http'
-import * as httpProxy from 'http-proxy'
 import * as Koa from 'koa'
 import * as cors from '@koa/cors'
 import * as Router from 'koa-router'
@@ -13,14 +12,10 @@ export class Server {
   private config: Config
   private redis: Redis
   private server: HttpServer
-  private proxyServer: httpProxy
 
   constructor (deps: Injector) {
     this.config = deps(Config)
     this.redis = deps(Redis)
-    this.proxyServer = httpProxy.createProxyServer({
-      changeOrigin: true
-    })
   }
 
   start (): void {
@@ -29,7 +24,6 @@ export class Server {
 
     koa.context.config = this.config
     koa.context.redis = this.redis
-    koa.context.proxyServer = this.proxyServer
 
     koa.use(cors({
       allowHeaders: ['web-monetization-id']
@@ -48,7 +42,6 @@ export class Server {
   }
 
   async stop (): Promise<void> {
-    this.proxyServer.close()
     return new Promise((resolve, reject) => {
       this.server.close(err => {
         if (err) {
