@@ -33,6 +33,7 @@ const spspProxySetup = () => async (ctx: Koa.Context, next: Koa.Next) => {
     } else {
       ctx.state.spspEndpoint = decodeURIComponent(ctx.req.url.substring(1))
     }
+    ctx.state.resolvedSpspEndpoint = resolvePointer(ctx.state.spspEndpoint)
     ctx.state.nonce = randomBytes(16)
     await next()
   }
@@ -46,7 +47,7 @@ router.get('/(.*)',
     // koa-better-http-proxy typings don't include supported function type for url
     // https://github.com/nsimmons/koa-better-http-proxy/issues/2
     // @ts-ignore
-    (ctx: Koa.Context) => resolvePointer(ctx.state.spspEndpoint),
+    (ctx: Koa.Context) => ctx.state.resolvedSpspEndpoint,
     {
       proxyReqOptDecorator: async (proxyReqOpts: proxy.IRequestOption, ctx: Koa.Context) => {
         proxyReqOpts.headers['Receipt-Nonce'] = ctx.state.nonce.toString('base64')
@@ -55,7 +56,7 @@ router.get('/(.*)',
         return proxyReqOpts
       },
       proxyReqPathResolver: (ctx: Koa.Context) => {
-        return new URL(resolvePointer(ctx.state.spspEndpoint)).pathname
+        return new URL(ctx.state.resolvedSpspEndpoint).pathname
       },
       userResDecorator: async (proxyRes: IncomingMessage, proxyResData: Buffer, ctx: Koa.Context) => {
         const data = JSON.parse(proxyResData.toString())
@@ -63,7 +64,7 @@ router.get('/(.*)',
           ctx.throw(409)
         }
         await ctx.redis.cacheReceiptNonce(ctx.state.nonce.toString('base64'), ctx.state.spspEndpoint)
-        return proxyResData as Buffer
+        return proxyResData
       }
     }
   )
