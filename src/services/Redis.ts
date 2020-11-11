@@ -7,11 +7,11 @@ import { Config } from './Config'
 import { Receipt } from 'ilp-protocol-stream'
 
 interface CustomRedis extends ioredis.Redis {
-  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string>
+  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string[]>
 }
 
 interface CustomRedisMock extends ioredisMock {
-  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string>
+  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string[]>
 }
 
 export const RECEIPT_KEY = 'ilpReceipts'
@@ -19,8 +19,9 @@ export const SPSP_ENDPOINT_KEY = 'spspEndpoint'
 export const SPSP_ID_KEY = 'spspId'
 const TEMP_KEY = 'ilpTemp'
 
-interface SpspDetails {
-  spspEndpoint: string
+interface ReceiptDetails {
+  value: Long
+  spspEndpoint?: string
   spspId?: string
 }
 
@@ -46,21 +47,23 @@ export class Redis {
       lua: `
 local streamId = ARGV[1]
 local amount = ARGV[2]
-local prevAmount = redis.call('hget', KEYS[1], streamId)
+local prevAmount, spspEndpoint, spspId = unpack(redis.call('hmget', KEYS[1], streamId, 'spspEndpoint', 'spspId'))
 if prevAmount then
   local tempKey = KEYS[2]
   redis.call('set', tempKey, amount, 'EX', 1)
   redis.call('decrby', tempKey, prevAmount)
   local diff = redis.call('get', tempKey)
   if string.sub(diff, 1, 1) == '-' then
-    return '0'
+    return {'0'}
   else
     redis.call('hset', KEYS[1], streamId, amount)
-    return diff
+    return {diff,spspEndpoint,spspId}
   end
+elseif not spspEndpoint then
+  return {'0'}
 else
   redis.call('hset', KEYS[1], streamId, amount)
-  return amount
+  return {amount,spspEndpoint,spspId}
 end
 `
     })
@@ -87,26 +90,18 @@ end
     await this.redis.expire(key, this.config.receiptTTLSeconds)
   }
 
-  async getReceiptSPSPDetails (nonce: string): Promise<SpspDetails> {
-    const key = `${RECEIPT_KEY}:${nonce}`
-    const [ spspEndpoint, spspId ] = await this.redis.hmget(key, SPSP_ENDPOINT_KEY, SPSP_ID_KEY)
-    return {
-      spspEndpoint,
-      spspId
-    }
-  }
-
-  async getReceiptValue (receipt: Receipt): Promise<Long> {
+  async getReceiptValue (receipt: Receipt): Promise<ReceiptDetails> {
     if (receipt.totalReceived.compare(Long.MAX_VALUE) === 1) {
       throw new Error('receipt amount exceeds max 64 bit signed integer')
     }
+
     const key = `${RECEIPT_KEY}:${receipt.nonce.toString('base64')}`
-    if (await this.redis.exists(key)) {
-      const tempKey = `${TEMP_KEY}:${uuidv4()}`
-      const value = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
-      return Long.fromString(value)
-    } else {
-      return Long.UZERO
+    const tempKey = `${TEMP_KEY}:${uuidv4()}`
+    const [ value, spspEndpoint, spspId ] = await this.redis.getReceiptValue(key, tempKey, receipt.streamId, receipt.totalReceived.toString())
+    return {
+      value: Long.fromString(value),
+      spspEndpoint,
+      spspId
     }
   }
 }

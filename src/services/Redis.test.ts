@@ -69,43 +69,13 @@ describe('Redis', () => {
     })
   })
 
-  describe('getReceiptSPSPDetails', () => {
-    const spspEndpoint = 'http://localhost:3000'
-
-    it('returns stored SPSP endpoint', async () => {
-      const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
-      await redis.cacheReceiptNonce(nonce, spspEndpoint)
-      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
-      expect(spspDetails.spspEndpoint).toStrictEqual(spspEndpoint)
-      expect(spspDetails.spspId).toBeNull()
-    })
-
-    it('returns null for unknown receipt nonce', async () => {
-      const nonce = '123'
-      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
-      expect(spspDetails.spspEndpoint).toBeNull()
-      expect(spspDetails.spspId).toBeNull()
-    })
-
-    it('returns stored SPSP id', async () => {
-      const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
-      const spspId = 'alice'
-      await redis.cacheReceiptNonce(nonce, spspEndpoint, spspId)
-      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
-      expect(spspDetails.spspEndpoint).toStrictEqual(spspEndpoint)
-      expect(spspDetails.spspId).toStrictEqual(spspId)
-    })
-  })
-
   describe('getReceiptValue', () => {
     const nonce = Buffer.from('123', 'base64')
     const streamId = '1'
-    const spspEndpoint = 'http://localhost:3000'
+    const cachedSpspEndpoint = 'http://localhost:3000'
 
     beforeEach(async () => {
-      await redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint)
+      await redis.cacheReceiptNonce(nonce.toString('base64'), cachedSpspEndpoint)
     })
 
     afterAll(() => {
@@ -119,7 +89,7 @@ describe('Redis', () => {
         totalReceived: Long.fromNumber(10),
         version: RECEIPT_VERSION
       }
-      const value = await redis.getReceiptValue(receipt)
+      const { value } = await redis.getReceiptValue(receipt)
       expect(value.compare(receipt.totalReceived)).toBe(0)
     })
 
@@ -136,6 +106,41 @@ describe('Redis', () => {
       expect(await redis._redis.hget(key, receipt.streamId)).toBe(receipt.totalReceived.toString())
     })
 
+    it('returns stored SPSP endpoint', async () => {
+      const receipt = {
+        nonce,
+        streamId,
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const { spspEndpoint } = await redis.getReceiptValue(receipt)
+      expect(spspEndpoint).toStrictEqual(cachedSpspEndpoint)
+    })
+
+    it('does not return undefined SPSP id', async () => {
+      const receipt = {
+        nonce,
+        streamId,
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const { spspId } = await redis.getReceiptValue(receipt)
+      expect(spspId).toBeNull()
+    })
+
+    it('returns stored SPSP id', async () => {
+      const cachedSpspId = 'alice'
+      await redis.cacheReceiptNonce(nonce.toString('base64'), cachedSpspEndpoint, cachedSpspId)
+      const receipt = {
+        nonce,
+        streamId,
+        totalReceived: Long.fromNumber(10),
+        version: RECEIPT_VERSION
+      }
+      const { spspId } = await redis.getReceiptValue(receipt)
+      expect(spspId).toStrictEqual(cachedSpspId)
+    })
+
     it('returns the incremented amount of a subsequent receipt', async () => {
       const receipt1 = {
         nonce,
@@ -150,7 +155,7 @@ describe('Redis', () => {
         version: RECEIPT_VERSION
       }
       await redis.getReceiptValue(receipt1)
-      const value = await redis.getReceiptValue(receipt2)
+      const { value } = await redis.getReceiptValue(receipt2)
       expect(value.compare(5)).toBe(0)
     })
 
@@ -189,7 +194,7 @@ describe('Redis', () => {
         version: RECEIPT_VERSION
       }
       await redis.getReceiptValue(receipt1)
-      const value = await redis.getReceiptValue(receiptLess)
+      const { value } = await redis.getReceiptValue(receiptLess)
       expect(value.compare(0)).toBe(0)
     })
 
@@ -243,11 +248,11 @@ describe('Redis', () => {
         totalReceived: Long.fromNumber(10),
         version: RECEIPT_VERSION
       }
-      const value = await redis.getReceiptValue(receipt)
+      const { value } = await redis.getReceiptValue(receipt)
       expect(value.compare(0)).toBe(0)
     })
 
-    it('store receipt amounts for multiple stream ids', async () => {
+    it('stores receipt amounts for multiple stream ids', async () => {
       const receipt1 = {
         nonce,
         streamId,
@@ -263,7 +268,7 @@ describe('Redis', () => {
       await redis.getReceiptValue(receipt1)
       const key2 = `${RECEIPT_KEY}:${receipt2.nonce.toString('base64')}`
       expect(await redis._redis.hget(key2, receipt2.streamId)).toBeNull()
-      const value = await redis.getReceiptValue(receipt2)
+      const { value } = await redis.getReceiptValue(receipt2)
       expect(value.compare(receipt2.totalReceived)).toBe(0)
     })
   })

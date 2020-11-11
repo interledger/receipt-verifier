@@ -6,7 +6,9 @@ import { generateReceiptSecret } from '../util/crypto'
 
 export const RECEIPT_LENGTH_BASE64 = 80
 
-const verifyReceipt = () => async (ctx: Koa.Context, next: Koa.Next) => {
+export const router = new Router()
+
+router.post('/verify', async (ctx: Koa.Context) => {
   const body = await raw(ctx.req, {
     limit: RECEIPT_LENGTH_BASE64
   })
@@ -14,7 +16,7 @@ const verifyReceipt = () => async (ctx: Koa.Context, next: Koa.Next) => {
   let receipt: Receipt
   try {
     const receiptBytes = Buffer.from(body.toString(), 'base64')
-    ctx.state.receipt = verifyReceiptBytes(receiptBytes, (decoded: ReceiptWithHMAC) => {
+    receipt = verifyReceiptBytes(receiptBytes, (decoded: ReceiptWithHMAC) => {
       return generateReceiptSecret(ctx.config.receiptSeed, decoded.nonce)
     })
   } catch (error) {
@@ -22,26 +24,22 @@ const verifyReceipt = () => async (ctx: Koa.Context, next: Koa.Next) => {
   }
 
   try {
-    ctx.state.receiptValue = await ctx.redis.getReceiptValue(ctx.state.receipt)
+    const { value, spspEndpoint, spspId } = await ctx.redis.getReceiptValue(receipt)
+    if (value!.isZero()) {
+      // too old or value is less than previously submitted receipt
+      ctx.throw(400, 'expired receipt')
+    }
+    ctx.response.body = JSON.stringify({
+      amount: value.toString(),
+      id: spspId,
+      spspEndpoint
+    })
+    return ctx.status = 200
   } catch (error) {
-    ctx.throw(409, error.message)
+    if (error.message === 'expired receipt') {
+      throw error
+    } else {
+      ctx.throw(409, error.message)
+    }
   }
-
-  if (ctx.state.receiptValue.isZero()) {
-    // too old or value is less than previously submitted receipt
-    ctx.throw(400, 'expired receipt')
-  }
-  await next()
-}
-
-export const router = new Router()
-
-router.post('/verify', verifyReceipt(), async (ctx: Koa.Context) => {
-  const { spspEndpoint, spspId } = await ctx.redis.getReceiptSPSPDetails(ctx.state.receipt.nonce.toString('base64'))
-  ctx.response.body = JSON.stringify({
-    amount: ctx.state.receiptValue.toString(),
-    id: spspId,
-    spspEndpoint
-  })
-  return ctx.status = 200
 })
