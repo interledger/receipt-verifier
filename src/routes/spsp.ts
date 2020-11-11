@@ -23,7 +23,8 @@ function resolvePointer (pointer: string): string {
 const spspProxySetup = () => async (ctx: Koa.Context, next: Koa.Next) => {
   if (ctx.accepts('application/spsp4+json') && ctx.req.url) {
     if (ctx.config.spspEndpointsUrl) {
-      const id = encodeURIComponent(ctx.req.url.substring(1))
+      ctx.state.spspId = ctx.req.url.substring(1)
+      const id = encodeURIComponent(ctx.state.spspId)
       const endpointsRes = await fetch(`${ctx.config.spspEndpointsUrl}?id=${id}`)
       if (endpointsRes.status !== 200) {
         console.error(await endpointsRes.text())
@@ -63,7 +64,7 @@ router.get('/(.*)',
         if (!data.receipts_enabled) {
           ctx.throw(409)
         }
-        await ctx.redis.cacheReceiptNonce(ctx.state.nonce.toString('base64'), ctx.state.spspEndpoint)
+        await ctx.redis.cacheReceiptNonce(ctx.state.nonce.toString('base64'), ctx.state.spspEndpoint, ctx.state.spspId)
         return proxyResData
       }
     }

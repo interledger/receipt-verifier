@@ -16,7 +16,13 @@ interface CustomRedisMock extends ioredisMock {
 
 export const RECEIPT_KEY = 'ilpReceipts'
 export const SPSP_ENDPOINT_KEY = 'spspEndpoint'
+export const SPSP_ID_KEY = 'spspId'
 const TEMP_KEY = 'ilpTemp'
+
+interface SpspDetails {
+  spspEndpoint: string
+  spspId?: string
+}
 
 export class Redis {
   private config: Config
@@ -72,15 +78,22 @@ end
     await this.redis.flushdb()
   }
 
-  async cacheReceiptNonce (nonce: string, spspEndpoint: string): Promise<void> {
+  async cacheReceiptNonce (nonce: string, spspEndpoint: string, spspId?: string): Promise<void> {
     const key = `${RECEIPT_KEY}:${nonce}`
     await this.redis.hset(key, SPSP_ENDPOINT_KEY, spspEndpoint)
+    if (spspId) {
+      await this.redis.hset(key, SPSP_ID_KEY, spspId)
+    }
     await this.redis.expire(key, this.config.receiptTTLSeconds)
   }
 
-  async getReceiptSPSPEndpoint (nonce: string): Promise<string | null> {
+  async getReceiptSPSPDetails (nonce: string): Promise<SpspDetails> {
     const key = `${RECEIPT_KEY}:${nonce}`
-    return await this.redis.hget(key, SPSP_ENDPOINT_KEY)
+    const [ spspEndpoint, spspId ] = await this.redis.hmget(key, SPSP_ENDPOINT_KEY, SPSP_ID_KEY)
+    return {
+      spspEndpoint,
+      spspId
+    }
   }
 
   async getReceiptValue (receipt: Receipt): Promise<Long> {

@@ -1,5 +1,5 @@
 import reduct from 'reduct'
-import { Redis, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from './Redis'
+import { Redis, SPSP_ENDPOINT_KEY, SPSP_ID_KEY, RECEIPT_KEY } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import * as Long from 'long'
@@ -56,23 +56,46 @@ describe('Redis', () => {
       const storedSPSPEndpoint = await redis._redis.hget(key, SPSP_ENDPOINT_KEY)
       expect(storedSPSPEndpoint).toStrictEqual(spspEndpoint)
     })
+
+    it('stores SPSP id', async () => {
+      const nonce = '123'
+      const key = `${RECEIPT_KEY}:${nonce}`
+      const spspId = 'alice'
+      expect(await redis._redis.exists(key)).toBe(0)
+      await redis.cacheReceiptNonce(nonce, spspEndpoint, spspId)
+      expect(await redis._redis.exists(key)).toBe(1)
+      const storedSPSPId = await redis._redis.hget(key, SPSP_ID_KEY)
+      expect(storedSPSPId).toStrictEqual(spspId)
+    })
   })
 
-  describe('getReceiptSPSPEndpoint', () => {
+  describe('getReceiptSPSPDetails', () => {
     const spspEndpoint = 'http://localhost:3000'
 
     it('returns stored SPSP endpoint', async () => {
       const nonce = '123'
       const key = `${RECEIPT_KEY}:${nonce}`
       await redis.cacheReceiptNonce(nonce, spspEndpoint)
-      const storedSPSPEndpoint = await redis.getReceiptSPSPEndpoint(nonce)
-      expect(storedSPSPEndpoint).toStrictEqual(spspEndpoint)
+      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
+      expect(spspDetails.spspEndpoint).toStrictEqual(spspEndpoint)
+      expect(spspDetails.spspId).toBeNull()
     })
 
     it('returns null for unknown receipt nonce', async () => {
       const nonce = '123'
-      const storedSPSPEndpoint = await redis.getReceiptSPSPEndpoint(nonce)
-      expect(storedSPSPEndpoint).toBeNull()
+      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
+      expect(spspDetails.spspEndpoint).toBeNull()
+      expect(spspDetails.spspId).toBeNull()
+    })
+
+    it('returns stored SPSP id', async () => {
+      const nonce = '123'
+      const key = `${RECEIPT_KEY}:${nonce}`
+      const spspId = 'alice'
+      await redis.cacheReceiptNonce(nonce, spspEndpoint, spspId)
+      const spspDetails = await redis.getReceiptSPSPDetails(nonce)
+      expect(spspDetails.spspEndpoint).toStrictEqual(spspEndpoint)
+      expect(spspDetails.spspId).toStrictEqual(spspId)
     })
   })
 

@@ -74,4 +74,5 @@ Verifies receipt and returns value
 | Field Name   | Type   | Description              |
 |--------------|--------|--------------------------|
 | amount       | string | Amount by which this receipt exceeds the previously verified receipt's `totalReceived` |
+| id           | string | _OPTIONAL_ The URI decoded `id` that was used in the request to the `SPSP_ENDPOINTS_URL` |
 | spspEndpoint | string | SPSP endpoint to which the payment was sent |

@@ -37,9 +37,10 @@ const verifyReceipt = () => async (ctx: Koa.Context, next: Koa.Next) => {
 export const router = new Router()
 
 router.post('/verify', verifyReceipt(), async (ctx: Koa.Context) => {
-  const spspEndpoint = await ctx.redis.getReceiptSPSPEndpoint(ctx.state.receipt.nonce.toString('base64'))
+  const { spspEndpoint, spspId } = await ctx.redis.getReceiptSPSPDetails(ctx.state.receipt.nonce.toString('base64'))
   ctx.response.body = JSON.stringify({
     amount: ctx.state.receiptValue.toString(),
+    id: spspId,
     spspEndpoint
   })
   return ctx.status = 200
