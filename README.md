@@ -41,7 +41,7 @@ npm start
 
 #### REDIS_URI
 * Type: String
-* Description: The URI at which to connect to Redis. Use `mock` for [in-memory Redis](https://www.npmjs.com/package/ioredis-mock) (NOT RECOMMENDED for production)
+* Description: The URI at which to connect to Redis.
 * Default: redis://127.0.0.1:6379/
 
 #### SPSP_ENDPOINTS_URL

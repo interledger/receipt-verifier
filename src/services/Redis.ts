@@ -1,16 +1,11 @@
 import { Injector } from 'reduct'
 import * as ioredis from 'ioredis'
-import * as ioredisMock from 'ioredis-mock'
 import * as Long from 'long'
 import { v4 as uuidv4 } from 'uuid'
 import { Config } from './Config'
 import { Receipt } from 'ilp-protocol-stream'
 
 interface CustomRedis extends ioredis.Redis {
-  getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string[]>
-}
-
-interface CustomRedisMock extends ioredisMock {
   getReceiptValue(key: string, tempKey: string, streamId: string, amount: string): Promise<string[]>
 }
 
@@ -27,18 +22,14 @@ interface ReceiptDetails {
 
 export class Redis {
   private config: Config
-  private redis: CustomRedis | CustomRedisMock
+  private redis: CustomRedis
 
   constructor (deps: Injector) {
     this.config = deps(Config)
   }
 
   start(): void {
-    if (this.config.redisUri === 'mock') {
-      this.redis = new ioredisMock() as CustomRedisMock
-    } else {
-      this.redis = new ioredis(this.config.redisUri) as CustomRedis
-    }
+    this.redis = new ioredis(this.config.redisUri) as CustomRedis
 
     // These Redis scripts use Redis to handle all numbers to avoid the
     // limited precision of Javascript and Lua numbers
