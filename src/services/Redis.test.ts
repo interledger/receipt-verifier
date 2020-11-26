@@ -219,7 +219,7 @@ describe('Redis', () => {
       expect(await redis._redis.hget(key, streamId)).toBe(receipt1.totalReceived.toString())
     })
 
-    it('throws for receipt amount greater than max 64 bit signed int', async () => {
+    it('handles receipt amount greater than max 64 bit signed int', async () => {
       const receiptSafe = {
         nonce,
         streamId,
@@ -233,12 +233,8 @@ describe('Redis', () => {
         version: RECEIPT_VERSION
       }
       await redis.getReceiptValue(receiptSafe)
-      try {
-        await redis.getReceiptValue(receiptBig)
-        fail()
-      } catch (error) {
-        expect(error.message).toBe('receipt amount exceeds max 64 bit signed integer')
-      }
+      const { value } = await redis.getReceiptValue(receiptBig)
+      expect(value.compare(receiptBig.totalReceived.subtract(receiptSafe.totalReceived))).toBe(0)
     })
 
     it('returns zero for expired receipt nonce', async () => {

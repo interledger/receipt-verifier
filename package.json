@@ -27,8 +27,7 @@
     "long": "^4.0.0",
     "node-fetch": "^2.6.0",
     "raw-body": "^2.4.1",
-    "reduct": "^3.3.1",
-    "uuid": "^7.0.2"
+    "reduct": "^3.3.1"
   },
   "devDependencies": {
     "@types/ioredis": "^4.14.7",
@@ -38,7 +37,6 @@
     "@types/koa__cors": "^3.0.1",
     "@types/node": "^13.7.1",
     "@types/node-fetch": "^2.5.5",
-    "@types/uuid": "^7.0.0",
     "jest": "^25.2.0",
     "ts-jest": "^25.5.1",
     "typescript": "^3.7.5"

@@ -135,7 +135,7 @@ describe('verify router', () => {
       expect(error).toBe('expired receipt')
     })
 
-    it('returns 409 for receipt amount greater than max 64 bit signed integer', async () => {
+    it('handles receipt amount greater than max 64 bit signed integer', async () => {
       const id = 'id'
       const amount = Long.MAX_VALUE.toUnsigned().add(1)
       const receipt = makeReceipt(amount, config.receiptSeed)
@@ -143,9 +143,9 @@ describe('verify router', () => {
         method: 'POST',
         body: receipt
       })
-      expect(resp.status).toBe(409)
-      const error = await resp.text()
-      expect(error).toBe('receipt amount exceeds max 64 bit signed integer')
+      expect(resp.status).toBe(200)
+      const receiptResp = await resp.json()
+      expect(receiptResp.amount).toStrictEqual(amount.toString())
     })
 
     it('returns 413 for body with length greater than RECEIPT_LENGTH_BASE64', async () => {
