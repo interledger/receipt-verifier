@@ -1,5 +1,5 @@
 import reduct from 'reduct'
-import { Redis, SPSP_ENDPOINT_KEY, SPSP_ID_KEY, RECEIPT_KEY } from './Redis'
+import { Redis, SPSP_ENDPOINT_KEY, SPSP_ID_KEY } from './Redis'
 import { Config } from './Config'
 import { Receipt, RECEIPT_VERSION } from 'ilp-protocol-stream'
 import * as Long from 'long'
@@ -38,33 +38,30 @@ describe('Redis', () => {
 
     it('creates new key with expiry', async () => {
       const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
-      expect(await redis._redis.exists(key)).toBe(0)
+      expect(await redis._redis.exists(nonce)).toBe(0)
       await redis.cacheReceiptNonce(nonce, spspEndpoint)
-      expect(await redis._redis.exists(key)).toBe(1)
-      const ttl = await redis._redis.ttl(key)
+      expect(await redis._redis.exists(nonce)).toBe(1)
+      const ttl = await redis._redis.ttl(nonce)
       expect(ttl).toBeGreaterThan(0)
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
 
     it('stores SPSP endpoint', async () => {
       const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
-      expect(await redis._redis.exists(key)).toBe(0)
+      expect(await redis._redis.exists(nonce)).toBe(0)
       await redis.cacheReceiptNonce(nonce, spspEndpoint)
-      expect(await redis._redis.exists(key)).toBe(1)
-      const storedSPSPEndpoint = await redis._redis.hget(key, SPSP_ENDPOINT_KEY)
+      expect(await redis._redis.exists(nonce)).toBe(1)
+      const storedSPSPEndpoint = await redis._redis.hget(nonce, SPSP_ENDPOINT_KEY)
       expect(storedSPSPEndpoint).toStrictEqual(spspEndpoint)
     })
 
     it('stores SPSP id', async () => {
       const nonce = '123'
-      const key = `${RECEIPT_KEY}:${nonce}`
       const spspId = 'alice'
-      expect(await redis._redis.exists(key)).toBe(0)
+      expect(await redis._redis.exists(nonce)).toBe(0)
       await redis.cacheReceiptNonce(nonce, spspEndpoint, spspId)
-      expect(await redis._redis.exists(key)).toBe(1)
-      const storedSPSPId = await redis._redis.hget(key, SPSP_ID_KEY)
+      expect(await redis._redis.exists(nonce)).toBe(1)
+      const storedSPSPId = await redis._redis.hget(nonce, SPSP_ID_KEY)
       expect(storedSPSPId).toStrictEqual(spspId)
     })
   })
@@ -100,7 +97,7 @@ describe('Redis', () => {
         totalReceived: Long.fromNumber(10),
         version: RECEIPT_VERSION
       }
-      const key = `${RECEIPT_KEY}:${receipt.nonce.toString('base64')}`
+      const key = receipt.nonce.toString('base64')
       expect(await redis._redis.hget(key, receipt.streamId)).toBeNull()
       await redis.getReceiptValue(receipt)
       expect(await redis._redis.hget(key, receipt.streamId)).toBe(receipt.totalReceived.toString())
@@ -172,7 +169,7 @@ describe('Redis', () => {
         totalReceived: Long.fromNumber(15),
         version: RECEIPT_VERSION
       }
-      const key = `${RECEIPT_KEY}:${receipt1.nonce.toString('base64')}`
+      const key = receipt1.nonce.toString('base64')
       expect(await redis._redis.hget(key, streamId)).toBeNull()
       await redis.getReceiptValue(receipt1)
       expect(await redis._redis.hget(key, streamId)).toBe(receipt1.totalReceived.toString())
@@ -211,7 +208,7 @@ describe('Redis', () => {
         totalReceived: Long.fromNumber(5),
         version: RECEIPT_VERSION
       }
-      const key = `${RECEIPT_KEY}:${receipt1.nonce.toString('base64')}`
+      const key = receipt1.nonce.toString('base64')
       expect(await redis._redis.hget(key, streamId)).toBeNull()
       await redis.getReceiptValue(receipt1)
       expect(await redis._redis.hget(key, streamId)).toBe(receipt1.totalReceived.toString())
@@ -262,7 +259,7 @@ describe('Redis', () => {
         version: RECEIPT_VERSION
       }
       await redis.getReceiptValue(receipt1)
-      const key2 = `${RECEIPT_KEY}:${receipt2.nonce.toString('base64')}`
+      const key2 = receipt2.nonce.toString('base64')
       expect(await redis._redis.hget(key2, receipt2.streamId)).toBeNull()
       const { value } = await redis.getReceiptValue(receipt2)
       expect(value.compare(receipt2.totalReceived)).toBe(0)

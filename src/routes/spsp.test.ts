@@ -4,7 +4,7 @@ import { createServer, Server as HttpServer } from 'http'
 import { AddressInfo } from 'net'
 import { Url } from 'url'
 import { Config } from '../services/Config'
-import { Redis, SPSP_ENDPOINT_KEY, RECEIPT_KEY } from '../services/Redis'
+import { Redis, SPSP_ENDPOINT_KEY } from '../services/Redis'
 import { Server } from '../services/Server'
 
 describe('SPSP router', () => {
@@ -137,7 +137,7 @@ describe('SPSP router', () => {
       })
       expect(resp.status).toBe(200)
       const body = await resp.json()
-      const ttl = await redis._redis.ttl(`${RECEIPT_KEY}:${body.nonce}`)
+      const ttl = await redis._redis.ttl(body.nonce)
       expect(ttl).toBeGreaterThan(0)
       expect(ttl).toBeLessThanOrEqual(config.receiptTTLSeconds)
     })
@@ -151,7 +151,7 @@ describe('SPSP router', () => {
       })
       expect(resp.status).toBe(200)
       const body = await resp.json()
-      const storedSPSPEndpoint = await redis._redis.hget(`${RECEIPT_KEY}:${body.nonce}`, SPSP_ENDPOINT_KEY)
+      const storedSPSPEndpoint = await redis._redis.hget(body.nonce, SPSP_ENDPOINT_KEY)
       expect(storedSPSPEndpoint).toStrictEqual(targetServerUrl)
     })
 
