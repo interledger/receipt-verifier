@@ -61,6 +61,23 @@ describe('verify router', () => {
       const receiptResp = await resp.json()
       expect(receiptResp.amount).toStrictEqual(amount.toString())
       expect(receiptResp.spspEndpoint).toStrictEqual(spspEndpoint)
+      expect(receiptResp.id).toBeUndefined()
+    })
+
+    it('returns cached SPSP id of valid receipt if present', async () => {
+      const spspId = 'alice'
+      await redis.cacheReceiptNonce(nonce.toString('base64'), spspEndpoint, spspId)
+      const amount = Long.fromNumber(10)
+      const receipt = makeReceipt(amount, config.receiptSeed)
+      const resp = await fetch(`http://localhost:${config.port}/verify`, {
+        method: 'POST',
+        body: receipt
+      })
+      expect(resp.status).toBe(200)
+      const receiptResp = await resp.json()
+      expect(receiptResp.amount).toStrictEqual(amount.toString())
+      expect(receiptResp.spspEndpoint).toStrictEqual(spspEndpoint)
+      expect(receiptResp.id).toStrictEqual(spspId)
     })
 
     it('returns additional value of subsequent receipt', async () => {
