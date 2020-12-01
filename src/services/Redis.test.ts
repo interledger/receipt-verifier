@@ -122,7 +122,7 @@ describe('Redis', () => {
         version: RECEIPT_VERSION
       }
       const { spspId } = await redis.getReceiptValue(receipt)
-      expect(spspId).toBeNull()
+      expect(spspId).toBeUndefined()
     })
 
     it('returns stored SPSP id', async () => {

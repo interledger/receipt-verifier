@@ -76,7 +76,7 @@ return {prevAmount,spspEndpoint,spspId}
     return {
       value: prevAmount && receipt.totalReceived.gt(prevAmount) ? receipt.totalReceived.subtract(prevAmount) : Long.ZERO,
       spspEndpoint,
-      spspId
+      spspId: spspId || undefined
     }
   }
 }
