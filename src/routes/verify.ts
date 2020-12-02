@@ -25,7 +25,7 @@ router.post('/verify', async (ctx: Koa.Context) => {
 
   try {
     const { value, spspEndpoint, spspId } = await ctx.redis.getReceiptValue(receipt)
-    if (value!.isZero()) {
+    if (!value || value.isZero()) {
       // too old or value is less than previously submitted receipt
       ctx.throw(400, 'expired receipt')
     }
