@@ -25,7 +25,7 @@
     "koa-better-http-proxy": "^0.2.5",
     "koa-router": "^8.0.7",
     "long": "^4.0.0",
-    "node-fetch": "^2.6.0",
+    "node-fetch": "^3.1.1",
     "raw-body": "^2.4.1",
     "reduct": "^3.3.1"
   },
